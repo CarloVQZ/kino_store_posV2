@@ -91,6 +91,52 @@ ipcMain.handle('image:getPath', (_e, filename) => {
   if (!filename) return null
   return path.join(imagesDir, filename)
 })
+// Usuarios y Autenticación
+const crypto = require('crypto')
+
+ipcMain.handle('db:getUsuariosActivos', () => {
+  return db.prepare('SELECT id, nombre, usuario, rol FROM usuario WHERE activo = 1').all()
+})
+
+ipcMain.handle('db:login', (_e, usuario, pin) => {
+  const pinHash = crypto.createHash('sha256').update(pin).digest('hex')
+  const user = db.prepare('SELECT id, nombre, usuario, rol FROM usuario WHERE usuario = ? AND pin = ? AND activo = 1').get(usuario, pinHash)
+  if (!user) throw new Error('PIN incorrecto o usuario inactivo')
+  return user
+})
+
+ipcMain.handle('db:getUsuarios', () => {
+  return db.prepare('SELECT id, nombre, usuario, rol, activo FROM usuario ORDER BY rol, nombre').all()
+})
+
+ipcMain.handle('db:addUsuario', (_e, nombre, usuario, pin, rol) => {
+  const existing = db.prepare('SELECT id FROM usuario WHERE usuario = ?').get(usuario)
+  if (existing) throw new Error('El nombre de usuario ya existe')
+  const pinHash = crypto.createHash('sha256').update(pin).digest('hex')
+  return db.prepare(
+    'INSERT INTO usuario (nombre, usuario, pin, rol) VALUES (?, ?, ?, ?)'
+  ).run(nombre, usuario, pinHash, rol)
+})
+
+ipcMain.handle('db:updateUsuario', (_e, id, nombre, usuario, pin, rol) => {
+  // Verify username uniqueness (excluding current user)
+  const existing = db.prepare('SELECT id FROM usuario WHERE usuario = ? AND id != ?').get(usuario, id)
+  if (existing) throw new Error('El nombre de usuario ya existe')
+  if (pin) {
+    const pinHash = crypto.createHash('sha256').update(pin).digest('hex')
+    return db.prepare(
+      'UPDATE usuario SET nombre=?, usuario=?, pin=?, rol=? WHERE id=?'
+    ).run(nombre, usuario, pinHash, rol, id)
+  } else {
+    return db.prepare(
+      'UPDATE usuario SET nombre=?, usuario=?, rol=? WHERE id=?'
+    ).run(nombre, usuario, rol, id)
+  }
+})
+
+ipcMain.handle('db:toggleUsuario', (_e, id, activo) => {
+  return db.prepare('UPDATE usuario SET activo=? WHERE id=?').run(activo, id)
+})
 
 // Ventas
 ipcMain.handle('db:addVenta', (_e, folio, total, metodo_pago, notas) => {

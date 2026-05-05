@@ -6,6 +6,7 @@ let tabActual = 'catalogo'
 // Inicializar la app
 document.addEventListener('DOMContentLoaded', async () => {
   actualizarFecha()
+  await initAuth() // Inicializar auth primero
   await cargarProductos()
 
   // Event listeners para filtros
@@ -61,6 +62,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Editar producto modal
   document.getElementById('btn-cancelar-editar').addEventListener('click', () => cerrarModal('modal-editar-producto'))
   document.getElementById('btn-submit-editar').addEventListener('click', submitEditarProducto)
+
+  // Auth
+  document.getElementById('btn-logout').addEventListener('click', showLoginScreen)
+  document.getElementById('btn-login-back').addEventListener('click', backToUserSelection)
+  document.getElementById('btn-pin-delete').addEventListener('click', deletePinDigit)
+
+  document.querySelectorAll('.pin-btn').forEach(btn => {
+    if (btn.id === 'btn-pin-delete') return // Skip
+    btn.addEventListener('click', () => addPinDigit(btn.textContent))
+  })
+
+  // Gestión de Usuarios
+  document.getElementById('btn-nuevo-usuario').addEventListener('click', mostrarModalNuevoUsuario)
+  document.getElementById('btn-cancelar-usuario').addEventListener('click', () => cerrarModal('modal-editar-usuario'))
+  document.getElementById('btn-submit-usuario').addEventListener('click', submitEditarUsuario)
 })
 
 function actualizarFecha() {
@@ -359,6 +375,7 @@ function cambiarTab(tabNombre, button) {
   document.getElementById('tab-compras').classList.add('hidden')
   document.getElementById('tab-historial').classList.add('hidden')
   document.getElementById('tab-metricas').classList.add('hidden')
+  document.getElementById('tab-usuarios').classList.add('hidden')
 
   // Mostrar el tab seleccionado
   document.getElementById(`tab-${tabNombre}`).classList.remove('hidden')
@@ -378,6 +395,8 @@ function cambiarTab(tabNombre, button) {
       cargarHistorial()
     } else if (tabNombre === 'metricas') {
       cargarMetricas()
+    } else if (tabNombre === 'usuarios') {
+      cargarTabUsuarios()
     }
   }
 }
@@ -436,6 +455,8 @@ function mostrarInventario(productos) {
       thumbHTML = `<div class="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100"><span class="text-lg">${prod.tipo === 'gorra' ? '🧢' : '👕'}</span></div>`
     }
 
+    const puedeEditar = currentUser && PERMISOS[currentUser.rol]?.editarProducto
+
     row.innerHTML = `
       <div>${thumbHTML}</div>
       <div class="font-body-m-bold truncate">${prod.nombre}</div>
@@ -444,13 +465,13 @@ function mostrarInventario(productos) {
       <div class="text-body-m ${stockClass} font-bold">${prod.stock}</div>
       <div class="text-body-m text-outline">${prod.stock_minimo}</div>
       <div>
-        <button class="btn-editar-prod px-2 py-1 bg-[#1D9E75] text-white rounded text-xs font-bold flex items-center gap-1">
+        ${puedeEditar ? `<button class="btn-editar-prod px-2 py-1 bg-[#1D9E75] text-white rounded text-xs font-bold flex items-center gap-1">
           <span class="material-symbols-outlined" style="font-size:14px">edit</span> Editar
-        </button>
+        </button>` : ''}
       </div>
     `
 
-    row.querySelector('.btn-editar-prod').addEventListener('click', () => editarProducto(prod))
+    row.querySelector('.btn-editar-prod')?.addEventListener('click', () => editarProducto(prod))
 
     tabla.appendChild(row)
   })
@@ -1496,5 +1517,376 @@ function renderEstadoInventario(m) {
       </div>
     </div>
   `
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AUTH & ROLES
+// ═══════════════════════════════════════════════════════════════
+
+let currentUser = null
+let loginSelectedUser = null
+let currentPin = ''
+
+// ── Mapa de permisos por rol ──
+const PERMISOS = {
+  admin: {
+    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'usuarios'],
+    editarProducto: true,
+    agregarProducto: true,
+    cambiarPrecios: true,
+    nuevaCompra: true,
+    confirmarCompra: true,
+    gestionUsuarios: true
+  },
+  gerente: {
+    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas'],
+    editarProducto: true,
+    agregarProducto: true,
+    cambiarPrecios: false,
+    nuevaCompra: true,
+    confirmarCompra: true,
+    gestionUsuarios: false
+  },
+  cajero: {
+    tabs: ['catalogo', 'historial'],
+    editarProducto: false,
+    agregarProducto: false,
+    cambiarPrecios: false,
+    nuevaCompra: false,
+    confirmarCompra: false,
+    gestionUsuarios: false
+  }
+}
+
+async function initAuth() {
+  await loadLoginUsers()
+  showLoginScreen()
+}
+
+async function loadLoginUsers() {
+  try {
+    const users = await window.db.getUsuariosActivos()
+    const grid = document.getElementById('login-users-grid')
+    grid.innerHTML = ''
+    
+    users.forEach(u => {
+      const btn = document.createElement('button')
+      btn.className = 'flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-[#1D9E75] hover:bg-[#E8F5F1]/30 transition-all cursor-pointer'
+      
+      const roleColor = u.rol === 'admin' ? 'text-red-500' : u.rol === 'gerente' ? 'text-blue-500' : 'text-[#1D9E75]'
+      const roleIcon = u.rol === 'admin' ? 'admin_panel_settings' : u.rol === 'gerente' ? 'manage_accounts' : 'person'
+      
+      btn.innerHTML = `
+        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
+          <span class="material-symbols-outlined ${roleColor} text-2xl">${roleIcon}</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <span class="font-bold text-sm leading-tight">${u.nombre}</span>
+          <span class="text-[10px] text-outline uppercase tracking-wider">${u.rol}</span>
+        </div>
+      `
+      btn.addEventListener('click', () => selectLoginUser(u))
+      grid.appendChild(btn)
+    })
+  } catch (err) {
+    console.error('Error loading users:', err)
+  }
+}
+
+function selectLoginUser(user) {
+  loginSelectedUser = user
+  currentPin = ''
+  updatePinIndicators()
+  document.getElementById('login-error-msg').textContent = ''
+  
+  document.getElementById('login-selected-username').textContent = user.nombre
+  document.getElementById('login-users-grid').classList.add('hidden')
+  document.getElementById('login-pin-section').classList.remove('hidden')
+  document.getElementById('login-logo-section').classList.add('hidden')
+}
+
+function backToUserSelection() {
+  loginSelectedUser = null
+  currentPin = ''
+  document.getElementById('login-pin-section').classList.add('hidden')
+  document.getElementById('login-users-grid').classList.remove('hidden')
+  document.getElementById('login-logo-section').classList.remove('hidden')
+}
+
+function showLoginScreen() {
+  currentUser = null
+  resetRoleRestrictions()
+  document.getElementById('login-screen').classList.remove('hidden')
+  document.getElementById('user-profile-badge').classList.add('hidden')
+  document.getElementById('btn-logout').classList.add('hidden')
+  loadLoginUsers()
+  backToUserSelection()
+}
+
+function updatePinIndicators() {
+  const indicators = document.getElementById('login-pin-indicators').children
+  for (let i = 0; i < 4; i++) {
+    if (i < currentPin.length) {
+      indicators[i].classList.replace('border-outline-variant', 'border-[#1D9E75]')
+      indicators[i].classList.add('bg-[#1D9E75]')
+    } else {
+      indicators[i].classList.replace('border-[#1D9E75]', 'border-outline-variant')
+      indicators[i].classList.remove('bg-[#1D9E75]')
+    }
+  }
+}
+
+async function addPinDigit(digit) {
+  if (currentPin.length < 4) {
+    currentPin += digit
+    updatePinIndicators()
+    document.getElementById('login-error-msg').textContent = ''
+    
+    if (currentPin.length === 4) {
+      await attemptLogin()
+    }
+  }
+}
+
+function deletePinDigit() {
+  if (currentPin.length > 0) {
+    currentPin = currentPin.slice(0, -1)
+    updatePinIndicators()
+    document.getElementById('login-error-msg').textContent = ''
+  }
+}
+
+async function attemptLogin() {
+  try {
+    const user = await window.db.login(loginSelectedUser.usuario, currentPin)
+    handleLoginSuccess(user)
+  } catch (err) {
+    document.getElementById('login-error-msg').textContent = 'PIN incorrecto'
+    currentPin = ''
+    updatePinIndicators()
+  }
+}
+
+function handleLoginSuccess(user) {
+  currentUser = user
+  document.getElementById('login-screen').classList.add('hidden')
+  
+  // Update header badge
+  document.getElementById('user-profile-name').textContent = user.nombre
+  document.getElementById('user-profile-role').textContent = user.rol
+  document.getElementById('user-profile-badge').classList.remove('hidden')
+  document.getElementById('btn-logout').classList.remove('hidden')
+  
+  // Apply role restrictions
+  applyRoleRestrictions(user.rol)
+}
+
+// ── Fase 2: Aplicar restricciones de rol ──
+function applyRoleRestrictions(rol) {
+  const permisos = PERMISOS[rol]
+  if (!permisos) return
+
+  // 1. Ocultar/Mostrar tabs de navegación con style.display
+  //    (no se puede usar la clase 'hidden' porque .nav-tab tiene display:flex en CSS)
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    const tabName = tab.dataset.tab
+    if (permisos.tabs.includes(tabName)) {
+      tab.style.display = 'flex'
+    } else {
+      tab.style.display = 'none'
+      // Si este tab estaba activo, quitarle la clase active
+      if (tab.classList.contains('active')) {
+        tab.classList.remove('active')
+      }
+    }
+  })
+
+  // 2. Si el tab activo está oculto, ir al catálogo
+  const tabActivo = document.querySelector('.nav-tab.active')
+  if (!tabActivo || tabActivo.style.display === 'none') {
+    const catTab = document.querySelector('[data-tab="catalogo"]')
+    if (catTab) cambiarTab('catalogo', catTab)
+  }
+
+  // 3. Botón agregar producto en inventario
+  const btnAgregar = document.getElementById('btn-agregar-producto')
+  if (btnAgregar) {
+    btnAgregar.style.display = permisos.agregarProducto ? '' : 'none'
+  }
+
+  // 4. Botón nueva compra
+  const btnNuevaCompra = document.getElementById('btn-nueva-compra')
+  if (btnNuevaCompra) {
+    btnNuevaCompra.style.display = permisos.nuevaCompra ? '' : 'none'
+  }
+
+  // 5. Botones de editar producto en inventario (se aplican al renderizar)
+  // La función mostrarInventario ya revisa `PERMISOS[currentUser.rol].editarProducto`
+
+  // 6. Cargar tab de usuarios si es admin
+  if (permisos.tabs.includes('usuarios')) {
+    cargarTabUsuarios()
+  }
+}
+
+// Resetear todos los permisos al hacer logout
+function resetRoleRestrictions() {
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    // Ocultar tab usuarios por defecto
+    if (tab.dataset.tab === 'usuarios') {
+      tab.style.display = 'none'
+    } else {
+      tab.style.display = 'flex'
+    }
+  })
+  const btnAgregar = document.getElementById('btn-agregar-producto')
+  if (btnAgregar) btnAgregar.style.display = ''
+  const btnNuevaCompra = document.getElementById('btn-nueva-compra')
+  if (btnNuevaCompra) btnNuevaCompra.style.display = ''
+}
+
+// ── Fase 3: Gestión de Usuarios (solo admin) ──
+async function cargarTabUsuarios() {
+  // Si el tab de usuarios ya existe en el DOM, solo actualizamos el contenido
+  let tabUsuarios = document.getElementById('tab-usuarios')
+  if (!tabUsuarios) return // El tab HTML aún no existe
+
+  try {
+    const usuarios = await window.db.getUsuarios()
+    mostrarUsuarios(usuarios)
+  } catch (err) {
+    console.error('Error cargando usuarios:', err)
+  }
+}
+
+function mostrarUsuarios(usuarios) {
+  const container = document.getElementById('usuarios-container')
+  if (!container) return
+
+  const tabla = document.createElement('div')
+  tabla.className = 'space-y-2 pb-8'
+
+  const header = document.createElement('div')
+  header.className = 'grid gap-2 p-4 bg-surface-container-low rounded-lg font-body-m-bold sticky top-0'
+  header.style.gridTemplateColumns = '1fr 100px 80px 100px 120px'
+  header.innerHTML = `
+    <div>Nombre</div>
+    <div>Usuario</div>
+    <div>Rol</div>
+    <div>Estado</div>
+    <div>Acciones</div>
+  `
+  tabla.appendChild(header)
+
+  usuarios.forEach(u => {
+    const row = document.createElement('div')
+    row.className = 'grid gap-2 p-3 bg-white border border-outline-variant rounded-lg items-center'
+    row.style.gridTemplateColumns = '1fr 100px 80px 100px 120px'
+
+    const roleColor = u.rol === 'admin' ? 'text-red-500' : u.rol === 'gerente' ? 'text-blue-500' : 'text-[#1D9E75]'
+    const estadoColor = u.activo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+    const estadoText = u.activo ? 'Activo' : 'Inactivo'
+    const roleIcon = u.rol === 'admin' ? 'admin_panel_settings' : u.rol === 'gerente' ? 'manage_accounts' : 'person'
+
+    row.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="material-symbols-outlined ${roleColor}" style="font-size:20px">${roleIcon}</span>
+        <span class="font-body-m-bold">${u.nombre}</span>
+      </div>
+      <div class="text-body-m text-outline">@${u.usuario}</div>
+      <div class="text-body-m uppercase text-xs font-bold ${roleColor}">${u.rol}</div>
+      <div><span class="px-2 py-0.5 ${estadoColor} rounded-full text-xs font-bold">${estadoText}</span></div>
+      <div class="flex gap-1"></div>
+    `
+
+    const actionsDiv = row.querySelector('.flex.gap-1')
+
+    // Botón editar
+    const btnEditar = document.createElement('button')
+    btnEditar.className = 'px-2 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs font-bold'
+    btnEditar.textContent = 'Editar'
+    btnEditar.addEventListener('click', () => editarUsuario(u))
+    actionsDiv.appendChild(btnEditar)
+
+    // Botón activar/desactivar (no para el propio usuario)
+    if (u.id !== currentUser.id) {
+      const btnToggle = document.createElement('button')
+      btnToggle.className = u.activo
+        ? 'px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-xs font-bold'
+        : 'px-2 py-1 bg-green-100 hover:bg-green-200 text-green-700 rounded text-xs font-bold'
+      btnToggle.textContent = u.activo ? 'Desactivar' : 'Activar'
+      btnToggle.addEventListener('click', () => toggleUsuario(u.id, !u.activo))
+      actionsDiv.appendChild(btnToggle)
+    }
+
+    tabla.appendChild(row)
+  })
+
+  container.innerHTML = ''
+  container.appendChild(tabla)
+}
+
+async function toggleUsuario(id, activar) {
+  try {
+    await window.db.toggleUsuario(id, activar ? 1 : 0)
+    await mostrarAlerta(activar ? '✓ Usuario activado' : '✓ Usuario desactivado')
+    await cargarTabUsuarios()
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
+}
+
+function mostrarModalNuevoUsuario() {
+  document.getElementById('modal-usuario-title').textContent = 'Nuevo Usuario'
+  document.getElementById('edit-user-id').value = ''
+  document.getElementById('edit-user-nombre').value = ''
+  document.getElementById('edit-user-usuario').value = ''
+  document.getElementById('edit-user-pin').value = ''
+  document.getElementById('edit-user-pin').placeholder = 'PIN de 4 dígitos'
+  document.querySelector('input[name="edit-user-rol"][value="cajero"]').checked = true
+  abrirModal('modal-editar-usuario')
+}
+
+function editarUsuario(u) {
+  document.getElementById('modal-usuario-title').textContent = 'Editar Usuario'
+  document.getElementById('edit-user-id').value = u.id
+  document.getElementById('edit-user-nombre').value = u.nombre
+  document.getElementById('edit-user-usuario').value = u.usuario
+  document.getElementById('edit-user-pin').value = ''
+  document.getElementById('edit-user-pin').placeholder = 'Dejar vacío para no cambiar'
+  const radio = document.querySelector(`input[name="edit-user-rol"][value="${u.rol}"]`)
+  if (radio) radio.checked = true
+  abrirModal('modal-editar-usuario')
+}
+
+async function submitEditarUsuario() {
+  const id = document.getElementById('edit-user-id').value
+  const nombre = document.getElementById('edit-user-nombre').value.trim()
+  const usuario = document.getElementById('edit-user-usuario').value.trim().toLowerCase()
+  const pin = document.getElementById('edit-user-pin').value.trim()
+  const rol = document.querySelector('input[name="edit-user-rol"]:checked').value
+
+  if (!nombre) { await mostrarAlerta('Ingresa el nombre'); return }
+  if (!usuario) { await mostrarAlerta('Ingresa el nombre de usuario'); return }
+
+  try {
+    if (id) {
+      // Editar existente
+      await window.db.updateUsuario(parseInt(id), nombre, usuario, pin || null, rol)
+      await mostrarAlerta('✓ Usuario actualizado')
+    } else {
+      // Crear nuevo
+      if (!pin || pin.length !== 4 || isNaN(pin)) {
+        await mostrarAlerta('El PIN debe ser de 4 dígitos numéricos')
+        return
+      }
+      await window.db.addUsuario(nombre, usuario, pin, rol)
+      await mostrarAlerta('✓ Usuario creado')
+    }
+    cerrarModal('modal-editar-usuario')
+    await cargarTabUsuarios()
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
 }
 

@@ -22,11 +22,19 @@
     <div class="flex items-center gap-6">
       <span class="font-body-m text-body-m text-gray-500" id="fecha">Hoy: 24 May, 2024</span>
       <div class="flex items-center gap-3">
-        <button class="p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80">
-          <span class="material-symbols-outlined text-gray-500">notifications</span>
+        <!-- Usuario activo -->
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-[#E8F5F1] rounded-lg border border-[#1D9E75]/20 hidden" id="user-profile-badge">
+          <span class="material-symbols-outlined text-[#1D9E75] text-sm">account_circle</span>
+          <div class="flex flex-col">
+            <span class="text-xs font-bold text-[#1D9E75] leading-none" id="user-profile-name">Cajero</span>
+            <span class="text-[10px] text-[#1D9E75]/80 leading-none uppercase" id="user-profile-role">ROL</span>
+          </div>
+        </div>
+        <button id="btn-logout" class="p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80 hidden" title="Cambiar usuario">
+          <span class="material-symbols-outlined text-gray-500">logout</span>
         </button>
         <button class="p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer active:opacity-80">
-          <span class="material-symbols-outlined text-gray-500">settings</span>
+          <span class="material-symbols-outlined text-gray-500">notifications</span>
         </button>
       </div>
     </div>
@@ -166,6 +174,20 @@
               <div id="chart-inventario"></div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- TAB: USUARIOS -->
+      <div id="tab-usuarios" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-5 flex items-center justify-between">
+          <h2 class="font-h1 text-h2">Gestión de Usuarios</h2>
+          <button id="btn-nuevo-usuario" class="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] text-white rounded-lg hover:bg-[#167e5d] transition-all font-body-m-bold">
+            <span class="material-symbols-outlined text-sm">person_add</span>
+            Nuevo Usuario
+          </button>
+        </div>
+        <div id="usuarios-container" class="flex-1 overflow-y-auto px-5">
+          <!-- Lista de usuarios se cargará aquí -->
         </div>
       </div>
 
@@ -473,7 +495,69 @@
     </div>
   </div>
 
+  <script src="js/catalogo.js"></script>
   <script src="js/app.js"></script>
+
+  <!-- Pantalla de Login -->
+  <div id="login-screen" class="fixed inset-0 bg-surface-container-low z-[100] flex flex-col items-center justify-center">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 flex flex-col items-center">
+      <!-- Logo section -->
+      <div id="login-logo-section" class="flex flex-col items-center">
+        <div class="w-16 h-16 bg-[#1D9E75] rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-[#1D9E75]/30">
+          <span class="material-symbols-outlined text-3xl">shopping_bag</span>
+        </div>
+        <h2 class="font-h1 text-h1 tracking-tight mb-2">Kino POS</h2>
+        <p class="text-outline text-body-m mb-8">Selecciona tu usuario para ingresar</p>
+      </div>
+
+      <!-- Lista de usuarios -->
+      <div id="login-users-grid" class="grid grid-cols-3 gap-4 w-full mb-8">
+        <!-- Cargado dinámicamente -->
+      </div>
+
+      <!-- Teclado Numérico (Oculto inicialmente) -->
+      <div id="login-pin-section" class="w-full flex flex-col items-center hidden">
+        <div class="flex items-center justify-between w-full mb-4">
+          <button id="btn-login-back" class="text-outline hover:text-on-surface">
+            <span class="material-symbols-outlined">arrow_back</span>
+          </button>
+          <span id="login-selected-username" class="font-bold text-lg">Usuario</span>
+          <div class="w-6"></div> <!-- Spacer -->
+        </div>
+
+        <p class="text-sm text-outline mb-4">Ingresa tu PIN:</p>
+        
+        <!-- Indicadores de PIN -->
+        <div class="flex gap-3 mb-6" id="login-pin-indicators">
+          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
+          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
+        </div>
+
+        <!-- Mensaje de error -->
+        <p id="login-error-msg" class="text-error text-sm font-bold h-5 mb-4"></p>
+
+        <!-- Teclado -->
+        <div class="grid grid-cols-3 gap-3 w-64">
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">1</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">2</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">3</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">4</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">5</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">6</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">7</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">8</button>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">9</button>
+          <div></div>
+          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">0</button>
+          <button id="btn-pin-delete" class="w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-outline transition-colors flex items-center justify-center">
+            <span class="material-symbols-outlined">backspace</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- Bottom Navigation -->
   <nav class="fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-200 flex justify-center gap-12 z-40">
@@ -497,7 +581,63 @@
       <span class="material-symbols-outlined">bar_chart</span>
       <span class="text-xs font-medium">Métricas</span>
     </button>
+    <button class="nav-tab hidden" data-tab="usuarios">
+      <span class="material-symbols-outlined">group</span>
+      <span class="text-xs font-medium">Usuarios</span>
+    </button>
   </nav>
+
+  <!-- Modal: Editar/Crear Usuario -->
+  <div id="modal-editar-usuario" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="p-6 border-b border-gray-100">
+        <h3 id="modal-usuario-title" class="font-h1 text-h2 flex items-center gap-2">
+          <span class="material-symbols-outlined text-[#1D9E75]">person_add</span>
+          Nuevo Usuario
+        </h3>
+      </div>
+      <div class="p-6 space-y-4">
+        <input type="hidden" id="edit-user-id" value="">
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-1">Nombre completo</label>
+          <input id="edit-user-nombre" type="text" required class="w-full px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="Ej: Juan Pérez">
+        </div>
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-1">Nombre de usuario</label>
+          <input id="edit-user-usuario" type="text" required class="w-full px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="Ej: juan">
+        </div>
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-1">PIN (4 dígitos)</label>
+          <input id="edit-user-pin" type="password" maxlength="4" pattern="[0-9]{4}" inputmode="numeric" class="w-full px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="PIN de 4 dígitos">
+        </div>
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-1">Rol</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex flex-col items-center gap-1 p-3 border border-outline-variant rounded-lg cursor-pointer has-[:checked]:border-[#1D9E75] has-[:checked]:bg-[#E8F5F1] text-center">
+              <input type="radio" name="edit-user-rol" value="admin" class="accent-[#1D9E75]">
+              <span class="material-symbols-outlined text-red-500" style="font-size:20px">admin_panel_settings</span>
+              <span class="text-xs font-bold">Admin</span>
+            </label>
+            <label class="flex flex-col items-center gap-1 p-3 border border-outline-variant rounded-lg cursor-pointer has-[:checked]:border-[#1D9E75] has-[:checked]:bg-[#E8F5F1] text-center">
+              <input type="radio" name="edit-user-rol" value="gerente" class="accent-[#1D9E75]">
+              <span class="material-symbols-outlined text-blue-500" style="font-size:20px">manage_accounts</span>
+              <span class="text-xs font-bold">Gerente</span>
+            </label>
+            <label class="flex flex-col items-center gap-1 p-3 border border-outline-variant rounded-lg cursor-pointer has-[:checked]:border-[#1D9E75] has-[:checked]:bg-[#E8F5F1] text-center">
+              <input type="radio" name="edit-user-rol" value="cajero" checked class="accent-[#1D9E75]">
+              <span class="material-symbols-outlined text-[#1D9E75]" style="font-size:20px">person</span>
+              <span class="text-xs font-bold">Cajero</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <button id="btn-cancelar-usuario" class="px-4 py-2 rounded-lg border border-outline-variant hover:bg-gray-50 transition-all font-body-m-bold">Cancelar</button>
+        <button id="btn-submit-usuario" class="px-6 py-2 rounded-lg bg-[#1D9E75] text-white hover:bg-[#167e5d] transition-all font-body-m-bold">Guardar</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
 

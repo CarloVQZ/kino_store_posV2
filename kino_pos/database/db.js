@@ -61,7 +61,28 @@ db.exec(`
     motivo      TEXT,
     fecha       TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS usuario (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre      TEXT NOT NULL,
+    usuario     TEXT NOT NULL UNIQUE,
+    pin         TEXT NOT NULL,
+    rol         TEXT NOT NULL CHECK(rol IN ('admin', 'gerente', 'cajero')),
+    activo      INTEGER NOT NULL DEFAULT 1,
+    creado_en   TEXT DEFAULT (datetime('now'))
+  );
 `)
+
+// Insertar admin por defecto si no hay usuarios
+const crypto = require('crypto')
+const countUsuarios = db.prepare('SELECT COUNT(*) as count FROM usuario').get().count
+if (countUsuarios === 0) {
+  const pinHash = crypto.createHash('sha256').update('1234').digest('hex')
+  db.prepare(
+    "INSERT INTO usuario (nombre, usuario, pin, rol) VALUES (?, ?, ?, ?)"
+  ).run('Admin', 'admin', pinHash, 'admin')
+  console.log('✓ Usuario admin creado (PIN: 1234)')
+}
 
 // Migración: agregar columna imagen si no existe (para BD existentes)
 try {
