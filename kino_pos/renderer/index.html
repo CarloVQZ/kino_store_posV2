@@ -103,6 +103,72 @@
         </div>
       </div>
 
+      <!-- TAB: MÉTRICAS -->
+      <div id="tab-metricas" class="flex-1 flex flex-col overflow-hidden hidden">
+        <div class="p-5 flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <h2 class="font-h1 text-h2">Métricas</h2>
+            <div class="flex items-center gap-2">
+              <div class="flex bg-white border border-outline-variant rounded-lg overflow-hidden">
+                <button class="metrics-range-btn px-3 py-1.5 text-xs font-bold bg-[#1D9E75] text-white" data-range="hoy">Hoy</button>
+                <button class="metrics-range-btn px-3 py-1.5 text-xs font-bold text-outline hover:bg-gray-50" data-range="semana">7 días</button>
+                <button class="metrics-range-btn px-3 py-1.5 text-xs font-bold text-outline hover:bg-gray-50" data-range="mes">30 días</button>
+                <button class="metrics-range-btn px-3 py-1.5 text-xs font-bold text-outline hover:bg-gray-50" data-range="todo">Todo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="metricas-container" class="flex-1 overflow-y-auto px-5 pb-8">
+          <!-- KPI Cards -->
+          <div class="grid grid-cols-4 gap-4 mb-6" id="metricas-kpis">
+            <!-- Se llenan dinámicamente -->
+          </div>
+
+          <!-- Charts Row -->
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <!-- Ventas vs Gastos Chart -->
+            <div class="bg-white rounded-xl border border-outline-variant p-5">
+              <h3 class="font-body-m-bold text-body-m mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#1D9E75] text-sm">trending_up</span>
+                Ventas vs Gastos por día
+              </h3>
+              <div id="chart-ventas-gastos" class="h-52"></div>
+            </div>
+
+            <!-- Métodos de pago -->
+            <div class="bg-white rounded-xl border border-outline-variant p-5">
+              <h3 class="font-body-m-bold text-body-m mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#1D9E75] text-sm">pie_chart</span>
+                Métodos de Pago
+              </h3>
+              <div id="chart-metodos-pago" class="h-52 flex items-center justify-center"></div>
+            </div>
+          </div>
+
+          <!-- Bottom Row -->
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Top Productos -->
+            <div class="bg-white rounded-xl border border-outline-variant p-5">
+              <h3 class="font-body-m-bold text-body-m mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#1D9E75] text-sm">star</span>
+                Productos más vendidos
+              </h3>
+              <div id="chart-top-productos"></div>
+            </div>
+
+            <!-- Resumen Inventario -->
+            <div class="bg-white rounded-xl border border-outline-variant p-5">
+              <h3 class="font-body-m-bold text-body-m mb-4 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#1D9E75] text-sm">inventory_2</span>
+                Estado del Inventario
+              </h3>
+              <div id="chart-inventario"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </main>
 
     <!-- Cart Sidebar -->
@@ -235,11 +301,34 @@
         </div>
         <!-- Paso 2: Agregar productos -->
         <div id="compra-paso-2" class="hidden space-y-4">
+          <!-- Buscador de producto -->
+          <div class="relative" id="compra-producto-picker">
+            <label class="block text-body-m font-body-m-bold mb-1">Producto</label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-sm">search</span>
+              <input id="input-buscar-producto-compra" type="text" autocomplete="off"
+                class="w-full pl-10 pr-10 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-[#1D9E75] transition-all"
+                placeholder="Buscar producto por nombre...">
+              <button id="btn-clear-busqueda" class="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface hidden">
+                <span class="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+            <!-- Dropdown de resultados -->
+            <div id="dropdown-productos-compra" class="absolute z-10 w-full mt-1 bg-white border border-outline-variant rounded-lg shadow-lg max-h-48 overflow-y-auto hidden">
+              <!-- Se llena dinámicamente -->
+            </div>
+            <!-- Producto seleccionado (chip) -->
+            <div id="producto-seleccionado-chip" class="hidden mt-2 flex items-center gap-2 px-3 py-2 bg-[#E8F5F1] border border-[#1D9E75] rounded-lg">
+              <span id="chip-emoji" class="text-sm">🧢</span>
+              <span id="chip-nombre" class="text-xs font-bold flex-1 truncate"></span>
+              <span id="chip-id" class="text-[10px] text-outline">#0</span>
+              <button id="btn-quitar-producto-seleccionado" class="text-outline hover:text-error">
+                <span class="material-symbols-outlined text-sm">close</span>
+              </button>
+            </div>
+          </div>
           <div class="flex gap-2">
-            <select id="select-compra-producto" class="flex-1 px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container">
-              <option value="">Seleccionar producto...</option>
-            </select>
-            <input id="input-compra-costo" type="number" step="0.01" min="0" class="w-24 px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="Costo">
+            <input id="input-compra-costo" type="number" step="0.01" min="0" class="flex-1 px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="Costo unitario">
             <input id="input-compra-cantidad" type="number" min="1" value="1" class="w-20 px-3 py-2 border border-outline-variant rounded-lg focus:outline-none focus:border-primary-container" placeholder="Cant.">
             <button id="btn-agregar-item-compra" class="px-3 py-2 bg-[#1D9E75] text-white rounded-lg hover:bg-[#167e5d] transition-all">
               <span class="material-symbols-outlined text-sm">add</span>
@@ -322,6 +411,10 @@
     <button class="nav-tab" data-tab="historial">
       <span class="material-symbols-outlined">history</span>
       <span class="text-xs font-medium">Historial</span>
+    </button>
+    <button class="nav-tab" data-tab="metricas">
+      <span class="material-symbols-outlined">bar_chart</span>
+      <span class="text-xs font-medium">Métricas</span>
     </button>
   </nav>
 </body>

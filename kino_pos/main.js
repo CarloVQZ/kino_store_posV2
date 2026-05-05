@@ -130,6 +130,126 @@ ipcMain.handle('db:confirmarCompra', (_e, compra_id) => {
 })
 
 // ──────────────────────────────────────
+// Métricas
+// ──────────────────────────────────────
+
+ipcMain.handle('db:getMetricas', (_e, fechaInicio, fechaFin) => {
+  try {
+    // Total ventas
+    const ventasTotal = db.prepare(
+      `SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count
+       FROM venta WHERE fecha >= ? AND fecha <= ?`
+    ).get(fechaInicio, fechaFin)
+
+    // Total compras (gastos)
+    const comprasTotal = db.prepare(
+      `SELECT COALESCE(SUM(total), 0) as total, COUNT(*) as count
+       FROM compra WHERE fecha >= ? AND fecha <= ? AND estado != 'cancelada'`
+    ).get(fechaInicio, fechaFin)
+
+    // Ganancia bruta = ventas - costo de los productos vendidos
+    // Usamos el costo de compra promedio por producto
+    const ganancia = ventasTotal.total - comprasTotal.total
+
+    // Ticket promedio
+    const ticketPromedio = ventasTotal.count > 0 ? ventasTotal.total / ventasTotal.count : 0
+
+    // Productos en stock bajo
+    const stockBajo = db.prepare(
+      `SELECT COUNT(*) as count FROM producto WHERE stock <= stock_minimo AND stock > 0`
+    ).get()
+
+    // Productos sin stock
+    const sinStock = db.prepare(
+      `SELECT COUNT(*) as count FROM producto WHERE stock = 0`
+    ).get()
+
+    // Total productos
+    const totalProductos = db.prepare(
+      `SELECT COUNT(*) as count FROM producto`
+    ).get()
+
+    // Valor del inventario (stock * precio)
+    const valorInventario = db.prepare(
+      `SELECT COALESCE(SUM(stock * precio), 0) as total FROM producto`
+    ).get()
+
+    return {
+      ventasTotal: ventasTotal.total,
+      ventasCount: ventasTotal.count,
+      comprasTotal: comprasTotal.total,
+      comprasCount: comprasTotal.count,
+      ganancia,
+      ticketPromedio,
+      stockBajo: stockBajo.count,
+      sinStock: sinStock.count,
+      totalProductos: totalProductos.count,
+      valorInventario: valorInventario.total
+    }
+  } catch (err) {
+    console.error('Error getMetricas:', err)
+    return null
+  }
+})
+
+ipcMain.handle('db:getVentasPorDia', (_e, fechaInicio, fechaFin) => {
+  try {
+    return db.prepare(
+      `SELECT date(fecha) as dia, SUM(total) as total, COUNT(*) as count
+       FROM venta WHERE fecha >= ? AND fecha <= ?
+       GROUP BY date(fecha) ORDER BY dia ASC`
+    ).all(fechaInicio, fechaFin)
+  } catch (err) {
+    console.error('Error getVentasPorDia:', err)
+    return []
+  }
+})
+
+ipcMain.handle('db:getComprasPorDia', (_e, fechaInicio, fechaFin) => {
+  try {
+    return db.prepare(
+      `SELECT date(fecha) as dia, SUM(total) as total, COUNT(*) as count
+       FROM compra WHERE fecha >= ? AND fecha <= ? AND estado != 'cancelada'
+       GROUP BY date(fecha) ORDER BY dia ASC`
+    ).all(fechaInicio, fechaFin)
+  } catch (err) {
+    console.error('Error getComprasPorDia:', err)
+    return []
+  }
+})
+
+ipcMain.handle('db:getProductosMasVendidos', (_e, fechaInicio, fechaFin, limite) => {
+  try {
+    return db.prepare(
+      `SELECT p.nombre, p.tipo, SUM(dv.cantidad) as unidades, SUM(dv.subtotal) as ingresos
+       FROM detalle_venta dv
+       JOIN producto p ON dv.producto_id = p.id
+       JOIN venta v ON dv.venta_id = v.id
+       WHERE v.fecha >= ? AND v.fecha <= ?
+       GROUP BY dv.producto_id
+       ORDER BY unidades DESC
+       LIMIT ?`
+    ).all(fechaInicio, fechaFin, limite || 5)
+  } catch (err) {
+    console.error('Error getProductosMasVendidos:', err)
+    return []
+  }
+})
+
+ipcMain.handle('db:getVentasPorMetodo', (_e, fechaInicio, fechaFin) => {
+  try {
+    return db.prepare(
+      `SELECT metodo_pago, COUNT(*) as count, SUM(total) as total
+       FROM venta WHERE fecha >= ? AND fecha <= ?
+       GROUP BY metodo_pago`
+    ).all(fechaInicio, fechaFin)
+  } catch (err) {
+    console.error('Error getVentasPorMetodo:', err)
+    return []
+  }
+})
+
+// ──────────────────────────────────────
 // Ventana principal
 // ──────────────────────────────────────
 

@@ -42,4 +42,20 @@ contextBridge.exposeInMainWorld('db', {
 
   confirmarCompra: (compra_id) =>
     ipcRenderer.invoke('db:confirmarCompra', compra_id),
+
+  // Métricas
+  getMetricas: (fechaInicio, fechaFin) =>
+    ipcRenderer.invoke('db:getMetricas', fechaInicio, fechaFin),
+
+  getVentasPorDia: (fechaInicio, fechaFin) =>
+    ipcRenderer.invoke('db:getVentasPorDia', fechaInicio, fechaFin),
+
+  getComprasPorDia: (fechaInicio, fechaFin) =>
+    ipcRenderer.invoke('db:getComprasPorDia', fechaInicio, fechaFin),
+
+  getProductosMasVendidos: (fechaInicio, fechaFin, limite) =>
+    ipcRenderer.invoke('db:getProductosMasVendidos', fechaInicio, fechaFin, limite),
+
+  getVentasPorMetodo: (fechaInicio, fechaFin) =>
+    ipcRenderer.invoke('db:getVentasPorMetodo', fechaInicio, fechaFin),
 })
