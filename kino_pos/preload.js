@@ -27,4 +27,19 @@ contextBridge.exposeInMainWorld('db', {
   // Movimientos de inventario
   addMovimiento: (producto_id, tipo, cantidad, motivo) =>
     ipcRenderer.invoke('db:addMovimiento', producto_id, tipo, cantidad, motivo),
+
+  // Compras
+  addCompra: (folio, proveedor, total, notas) =>
+    ipcRenderer.invoke('db:addCompra', folio, proveedor, total, notas),
+
+  getCompras: () => ipcRenderer.invoke('db:getCompras'),
+
+  addDetalleCompra: (compra_id, producto_id, cantidad, precio_unitario, subtotal) =>
+    ipcRenderer.invoke('db:addDetalleCompra', compra_id, producto_id, cantidad, precio_unitario, subtotal),
+
+  getDetalleCompra: (compra_id) =>
+    ipcRenderer.invoke('db:getDetalleCompra', compra_id),
+
+  confirmarCompra: (compra_id) =>
+    ipcRenderer.invoke('db:confirmarCompra', compra_id),
 })

@@ -32,6 +32,26 @@ db.exec(`
     subtotal        REAL NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS compra (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    folio       TEXT NOT NULL,
+    proveedor   TEXT NOT NULL,
+    total       REAL NOT NULL,
+    estado      TEXT NOT NULL CHECK(estado IN ('pendiente', 'recibida', 'cancelada')) DEFAULT 'pendiente',
+    fecha       TEXT DEFAULT (datetime('now')),
+    fecha_recepcion TEXT,
+    notas       TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS detalle_compra (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    compra_id       INTEGER NOT NULL REFERENCES compra(id),
+    producto_id     INTEGER NOT NULL REFERENCES producto(id),
+    cantidad        INTEGER NOT NULL,
+    precio_unitario REAL NOT NULL,
+    subtotal        REAL NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS movimiento_inventario (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     producto_id INTEGER NOT NULL REFERENCES producto(id),

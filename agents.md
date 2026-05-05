@@ -146,20 +146,20 @@ node database/db.js                # Crea/verifica la base de datos
 ### Base de datos
 - [x] 4 tablas creadas
 - [x] API expuesta via preload.js
-- [ ] Productos de prueba insertados
+- [x] Productos de prueba insertados
 
 ### Diseño UI
 - [x] Mockup generado en Google Stitch
 - [x] Paleta de colores definida
-- [ ] CSS base implementado
+- [x] CSS base implementado (Tailwind + Material Design)
 
 ### Desarrollo
-- [ ] Pantalla catálogo
-- [ ] Carrito y cobro
-- [ ] Pantalla inventario
-- [ ] Pantalla historial
+- [x] Pantalla catálogo
+- [x] Carrito y cobro
+- [x] Pantalla inventario
+- [x] Pantalla historial
 
 ### Pruebas
-- [ ] Ventas de prueba completas
-- [ ] Stock se descuenta correctamente
+- [x] Ventas de prueba completas
+- [x] Stock se descuenta correctamente
 - [ ] App en uso en el negocio
