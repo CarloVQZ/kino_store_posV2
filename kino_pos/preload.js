@@ -5,11 +5,19 @@ contextBridge.exposeInMainWorld('db', {
   // Productos
   getProductos: () => ipcRenderer.invoke('db:getProductos'),
 
-  addProducto: (nombre, tipo, precio, stock, stock_minimo) =>
-    ipcRenderer.invoke('db:addProducto', nombre, tipo, precio, stock, stock_minimo),
+  addProducto: (nombre, tipo, precio, stock, stock_minimo, imagen) =>
+    ipcRenderer.invoke('db:addProducto', nombre, tipo, precio, stock, stock_minimo, imagen),
 
   updateStock: (id, stock) =>
     ipcRenderer.invoke('db:updateStock', id, stock),
+
+  updateProducto: (id, nombre, tipo, precio, stock, stock_minimo, imagen) =>
+    ipcRenderer.invoke('db:updateProducto', id, nombre, tipo, precio, stock, stock_minimo, imagen),
+
+  // Imágenes
+  selectImage: () => ipcRenderer.invoke('dialog:selectImage'),
+  saveImage: (sourcePath) => ipcRenderer.invoke('image:save', sourcePath),
+  getImagePath: (filename) => ipcRenderer.invoke('image:getPath', filename),
 
   // Ventas
   addVenta: (folio, total, metodo_pago, notas) =>

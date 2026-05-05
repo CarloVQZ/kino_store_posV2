@@ -11,6 +11,7 @@ db.exec(`
     precio      REAL NOT NULL,
     stock       INTEGER NOT NULL DEFAULT 0,
     stock_minimo INTEGER NOT NULL DEFAULT 5,
+    imagen      TEXT,
     creado_en   TEXT DEFAULT (datetime('now'))
   );
 
@@ -61,5 +62,14 @@ db.exec(`
     fecha       TEXT DEFAULT (datetime('now'))
   );
 `)
+
+// Migración: agregar columna imagen si no existe (para BD existentes)
+try {
+  const cols = db.prepare("PRAGMA table_info(producto)").all()
+  if (!cols.find(c => c.name === 'imagen')) {
+    db.exec("ALTER TABLE producto ADD COLUMN imagen TEXT")
+    console.log('✓ Columna imagen agregada a producto')
+  }
+} catch (e) { /* ya existe */ }
 
 module.exports = db

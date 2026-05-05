@@ -51,6 +51,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.querySelectorAll('.metrics-range-btn').forEach(btn => {
     btn.addEventListener('click', () => seleccionarRangoMetricas(btn.dataset.range, btn))
   })
+
+  // Image pickers
+  document.getElementById('img-picker-add').addEventListener('click', () => seleccionarImagen('add'))
+  document.getElementById('btn-remove-img-add').addEventListener('click', () => quitarImagen('add'))
+  document.getElementById('img-picker-edit').addEventListener('click', () => seleccionarImagen('edit'))
+  document.getElementById('btn-remove-img-edit').addEventListener('click', () => quitarImagen('edit'))
+
+  // Editar producto modal
+  document.getElementById('btn-cancelar-editar').addEventListener('click', () => cerrarModal('modal-editar-producto'))
+  document.getElementById('btn-submit-editar').addEventListener('click', submitEditarProducto)
 })
 
 function actualizarFecha() {
@@ -62,6 +72,12 @@ function actualizarFecha() {
 async function cargarProductos() {
   try {
     const productos = await window.db.getProductos()
+    // Resolver paths de imágenes
+    for (const p of productos) {
+      if (p.imagen) {
+        p._imagePath = await window.db.getImagePath(p.imagen)
+      }
+    }
     mostrarProductos(productos)
   } catch (err) {
     console.error('Error cargando productos:', err)
@@ -118,10 +134,18 @@ function crearCard(producto) {
 
   const stock = producto.stock > 0 ? `${producto.stock} Stock` : 'Sin stock'
 
+  // Imagen o emoji
+  let imgHTML
+  if (producto.imagen && producto._imagePath) {
+    imgHTML = `<img src="file://${producto._imagePath.replace(/\\/g, '/')}" class="w-full h-full object-cover rounded-lg" alt="${producto.nombre}">`
+  } else {
+    imgHTML = `<span class="text-4xl">${producto.tipo === 'gorra' ? '🧢' : '👕'}</span>`
+  }
+
   card.innerHTML = `
     <span class="absolute top-3 right-3 px-2 py-1 ${badgeClass} font-label-sm text-label-sm rounded-full">${stock}</span>
-    <div class="w-full aspect-square bg-gray-50 rounded-lg flex items-center justify-center mb-3">
-      <span class="text-4xl">${producto.tipo === 'gorra' ? '🧢' : '👕'}</span>
+    <div class="w-full aspect-square bg-gray-50 rounded-lg flex items-center justify-center mb-3 overflow-hidden">
+      ${imgHTML}
     </div>
     <p class="font-code-num text-code-num text-outline mb-1">#${producto.id}</p>
     <p class="font-body-m-bold text-body-m mb-1">${producto.nombre}</p>
@@ -361,6 +385,11 @@ function cambiarTab(tabNombre, button) {
 async function cargarInventario() {
   try {
     const productos = await window.db.getProductos()
+    for (const p of productos) {
+      if (p.imagen) {
+        p._imagePath = await window.db.getImagePath(p.imagen)
+      }
+    }
     mostrarInventario(productos)
   } catch (err) {
     console.error('Error cargando inventario:', err)
@@ -379,8 +408,10 @@ function mostrarInventario(productos) {
   tabla.className = 'space-y-2 pb-8'
 
   const header = document.createElement('div')
-  header.className = 'grid grid-cols-6 gap-2 p-4 bg-surface-container-low rounded-lg font-body-m-bold sticky top-0'
+  header.className = 'grid gap-2 p-4 bg-surface-container-low rounded-lg font-body-m-bold sticky top-0'
+  header.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 100px'
   header.innerHTML = `
+    <div></div>
     <div>Producto</div>
     <div>Tipo</div>
     <div>Precio</div>
@@ -392,26 +423,34 @@ function mostrarInventario(productos) {
 
   productos.forEach(prod => {
     const row = document.createElement('div')
-    row.className = 'grid grid-cols-6 gap-2 p-4 bg-white border border-outline-variant rounded-lg items-center'
+    row.className = 'grid gap-2 p-3 bg-white border border-outline-variant rounded-lg items-center'
+    row.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 100px'
 
-    const stockClass = prod.stock > prod.stock_minimo ? 'text-green-600' : 'text-yellow-600'
+    const stockClass = prod.stock > prod.stock_minimo ? 'text-green-600' : prod.stock > 0 ? 'text-yellow-600' : 'text-red-500'
+
+    // Thumbnail
+    let thumbHTML
+    if (prod.imagen && prod._imagePath) {
+      thumbHTML = `<img src="file://${prod._imagePath.replace(/\\/g, '/')}" class="w-10 h-10 object-cover rounded-lg border border-gray-100">`
+    } else {
+      thumbHTML = `<div class="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100"><span class="text-lg">${prod.tipo === 'gorra' ? '🧢' : '👕'}</span></div>`
+    }
 
     row.innerHTML = `
-      <div class="font-body-m-bold">${prod.nombre}</div>
-      <div class="text-body-m">${prod.tipo === 'gorra' ? '🧢' : '👕'}</div>
+      <div>${thumbHTML}</div>
+      <div class="font-body-m-bold truncate">${prod.nombre}</div>
+      <div class="text-body-m">${prod.tipo === 'gorra' ? '🧢 Gorra' : '👕 Playera'}</div>
       <div class="text-body-m">$${prod.precio.toFixed(2)}</div>
-      <div class="text-body-m ${stockClass}">${prod.stock}</div>
-      <div class="text-body-m">${prod.stock_minimo}</div>
-      <div class="flex gap-1">
-        <input type="number" value="${prod.stock}" min="0" id="stock-${prod.id}" class="w-16 px-2 py-1 border border-outline-variant rounded text-sm" />
-        <button class="btn-guardar-stock px-2 py-1 bg-[#1D9E75] text-white rounded text-xs font-bold">Guardar</button>
+      <div class="text-body-m ${stockClass} font-bold">${prod.stock}</div>
+      <div class="text-body-m text-outline">${prod.stock_minimo}</div>
+      <div>
+        <button class="btn-editar-prod px-2 py-1 bg-[#1D9E75] text-white rounded text-xs font-bold flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px">edit</span> Editar
+        </button>
       </div>
     `
 
-    const btnGuardar = row.querySelector('.btn-guardar-stock')
-    btnGuardar.addEventListener('click', function() {
-      actualizarStockInventario(prod.id, this)
-    })
+    row.querySelector('.btn-editar-prod').addEventListener('click', () => editarProducto(prod))
 
     tabla.appendChild(row)
   })
@@ -548,7 +587,9 @@ function mostrarModalAgregarProducto() {
   document.getElementById('input-prod-precio').value = ''
   document.getElementById('input-prod-stock').value = ''
   document.getElementById('input-prod-minimo').value = '5'
+  document.getElementById('input-prod-imagen-path').value = ''
   document.querySelector('input[name="tipo-producto"][value="gorra"]').checked = true
+  quitarImagen('add')
   abrirModal('modal-agregar-producto')
 }
 
@@ -558,16 +599,126 @@ async function submitAgregarProducto() {
   const precio = parseFloat(document.getElementById('input-prod-precio').value)
   const stock = parseInt(document.getElementById('input-prod-stock').value)
   const stock_minimo = parseInt(document.getElementById('input-prod-minimo').value) || 5
+  const imagenPath = document.getElementById('input-prod-imagen-path').value
 
   if (!nombre) { await mostrarAlerta('Ingresa el nombre del producto'); return }
   if (isNaN(precio) || precio <= 0) { await mostrarAlerta('Ingresa un precio válido'); return }
   if (isNaN(stock) || stock < 0) { await mostrarAlerta('Ingresa un stock válido'); return }
 
   try {
-    await window.db.addProducto(nombre, tipo, precio, stock, stock_minimo)
+    // Guardar imagen si se seleccionó una
+    let imagenFilename = null
+    if (imagenPath) {
+      imagenFilename = await window.db.saveImage(imagenPath)
+    }
+
+    await window.db.addProducto(nombre, tipo, precio, stock, stock_minimo, imagenFilename)
     cerrarModal('modal-agregar-producto')
     await mostrarAlerta('✓ Producto agregado correctamente')
     await cargarInventario()
+    await cargarProductos()
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// IMÁGENES DE PRODUCTOS
+// ═══════════════════════════════════════════════════════════════
+
+async function seleccionarImagen(mode) {
+  const filePath = await window.db.selectImage()
+  if (!filePath) return
+
+  // Mostrar preview
+  const previewContainer = document.getElementById(`img-preview-${mode}`)
+  const previewImg = document.getElementById(`img-preview-${mode}-src`)
+  const picker = document.getElementById(`img-picker-${mode}`)
+  const pathInput = document.getElementById(`${mode === 'add' ? 'input' : 'edit'}-prod-imagen-path`)
+
+  previewImg.src = 'file://' + filePath.replace(/\\/g, '/')
+  previewContainer.classList.remove('hidden')
+  picker.classList.add('hidden')
+  pathInput.value = filePath
+}
+
+function quitarImagen(mode) {
+  const previewContainer = document.getElementById(`img-preview-${mode}`)
+  const previewImg = document.getElementById(`img-preview-${mode}-src`)
+  const picker = document.getElementById(`img-picker-${mode}`)
+  const pathInput = document.getElementById(`${mode === 'add' ? 'input' : 'edit'}-prod-imagen-path`)
+
+  previewImg.src = ''
+  previewContainer.classList.add('hidden')
+  picker.classList.remove('hidden')
+  pathInput.value = ''
+
+  // Para edit, marcar que se quitó la imagen
+  if (mode === 'edit') {
+    document.getElementById('edit-prod-imagen').value = ''
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDITAR PRODUCTO
+// ═══════════════════════════════════════════════════════════════
+
+async function editarProducto(prod) {
+  document.getElementById('edit-prod-id').value = prod.id
+  document.getElementById('edit-prod-nombre').value = prod.nombre
+  document.getElementById('edit-prod-precio').value = prod.precio
+  document.getElementById('edit-prod-stock').value = prod.stock
+  document.getElementById('edit-prod-minimo').value = prod.stock_minimo
+  document.getElementById('edit-prod-imagen').value = prod.imagen || ''
+  document.getElementById('edit-prod-imagen-path').value = ''
+
+  // Tipo
+  const radioTipo = document.querySelector(`input[name="edit-tipo-producto"][value="${prod.tipo}"]`)
+  if (radioTipo) radioTipo.checked = true
+
+  // Imagen
+  const previewContainer = document.getElementById('img-preview-edit')
+  const previewImg = document.getElementById('img-preview-edit-src')
+  const picker = document.getElementById('img-picker-edit')
+
+  if (prod.imagen && prod._imagePath) {
+    previewImg.src = 'file://' + prod._imagePath.replace(/\\/g, '/')
+    previewContainer.classList.remove('hidden')
+    picker.classList.add('hidden')
+  } else {
+    previewImg.src = ''
+    previewContainer.classList.add('hidden')
+    picker.classList.remove('hidden')
+  }
+
+  abrirModal('modal-editar-producto')
+}
+
+async function submitEditarProducto() {
+  const id = parseInt(document.getElementById('edit-prod-id').value)
+  const nombre = document.getElementById('edit-prod-nombre').value.trim()
+  const tipo = document.querySelector('input[name="edit-tipo-producto"]:checked').value
+  const precio = parseFloat(document.getElementById('edit-prod-precio').value)
+  const stock = parseInt(document.getElementById('edit-prod-stock').value)
+  const stock_minimo = parseInt(document.getElementById('edit-prod-minimo').value) || 5
+  const nuevaImagenPath = document.getElementById('edit-prod-imagen-path').value
+  let imagen = document.getElementById('edit-prod-imagen').value || null
+
+  if (!nombre) { await mostrarAlerta('Ingresa el nombre del producto'); return }
+  if (isNaN(precio) || precio <= 0) { await mostrarAlerta('Ingresa un precio válido'); return }
+  if (isNaN(stock) || stock < 0) { await mostrarAlerta('Ingresa un stock válido'); return }
+
+  try {
+    // Si se seleccionó una nueva imagen
+    if (nuevaImagenPath) {
+      imagen = await window.db.saveImage(nuevaImagenPath)
+    }
+
+    await window.db.updateProducto(id, nombre, tipo, precio, stock, stock_minimo, imagen)
+    cerrarModal('modal-editar-producto')
+    await mostrarAlerta('✓ Producto actualizado')
+    await cargarInventario()
+    await cargarProductos()
   } catch (err) {
     await mostrarAlerta('Error: ' + err.message)
   }

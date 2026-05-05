@@ -1,8 +1,15 @@
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
+const fs = require('fs')
 const db = require('./database/db')
 
 let mainWindow
+
+// Directorio para imágenes de productos
+const imagesDir = path.join(__dirname, 'database', 'images')
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir, { recursive: true })
+}
 
 // Insertar productos de prueba si la tabla está vacía
 function insertarProductosDePrueba() {
@@ -40,14 +47,49 @@ ipcMain.handle('db:getProductos', () => {
   return db.prepare('SELECT * FROM producto').all()
 })
 
-ipcMain.handle('db:addProducto', (_e, nombre, tipo, precio, stock, stock_minimo) => {
+ipcMain.handle('db:addProducto', (_e, nombre, tipo, precio, stock, stock_minimo, imagen) => {
   return db.prepare(
-    'INSERT INTO producto (nombre, tipo, precio, stock, stock_minimo) VALUES (?, ?, ?, ?, ?)'
-  ).run(nombre, tipo, precio, stock, stock_minimo)
+    'INSERT INTO producto (nombre, tipo, precio, stock, stock_minimo, imagen) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(nombre, tipo, precio, stock, stock_minimo, imagen || null)
 })
 
 ipcMain.handle('db:updateStock', (_e, id, stock) => {
   return db.prepare('UPDATE producto SET stock = ? WHERE id = ?').run(stock, id)
+})
+
+ipcMain.handle('db:updateProducto', (_e, id, nombre, tipo, precio, stock, stock_minimo, imagen) => {
+  return db.prepare(
+    'UPDATE producto SET nombre=?, tipo=?, precio=?, stock=?, stock_minimo=?, imagen=? WHERE id=?'
+  ).run(nombre, tipo, precio, stock, stock_minimo, imagen || null, id)
+})
+
+// Imágenes
+ipcMain.handle('dialog:selectImage', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Seleccionar imagen del producto',
+    filters: [{ name: 'Imágenes', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] }],
+    properties: ['openFile']
+  })
+  if (result.canceled || result.filePaths.length === 0) return null
+  return result.filePaths[0]
+})
+
+ipcMain.handle('image:save', (_e, sourcePath) => {
+  try {
+    const ext = path.extname(sourcePath)
+    const filename = `prod_${Date.now()}${ext}`
+    const destPath = path.join(imagesDir, filename)
+    fs.copyFileSync(sourcePath, destPath)
+    return filename
+  } catch (err) {
+    console.error('Error copiando imagen:', err)
+    return null
+  }
+})
+
+ipcMain.handle('image:getPath', (_e, filename) => {
+  if (!filename) return null
+  return path.join(imagesDir, filename)
 })
 
 // Ventas
