@@ -73,6 +73,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.addEventListener('click', () => addPinDigit(btn.textContent))
   })
 
+  // Support keyboard input for PIN
+  document.addEventListener('keydown', (e) => {
+    const loginSection = document.getElementById('login-pin-section')
+    if (loginSection && !loginSection.classList.contains('hidden')) {
+      if (/[0-9]/.test(e.key)) {
+        e.preventDefault()
+        addPinDigit(e.key)
+      } else if (e.key === 'Backspace') {
+        e.preventDefault()
+        deletePinDigit()
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (currentPin.length === 4) {
+          attemptLogin()
+        }
+      }
+    }
+  })
+
   // Gestión de Usuarios
   document.getElementById('btn-nuevo-usuario').addEventListener('click', mostrarModalNuevoUsuario)
   document.getElementById('btn-cancelar-usuario').addEventListener('click', () => cerrarModal('modal-editar-usuario'))
