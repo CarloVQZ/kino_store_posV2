@@ -87,4 +87,29 @@ contextBridge.exposeInMainWorld('db', {
 
   getVentasPorMetodo: (fechaInicio, fechaFin) =>
     ipcRenderer.invoke('db:getVentasPorMetodo', fechaInicio, fechaFin),
+
+  // Corte de caja / reporte día (histórico simple)
+  getResumenCorteCajaDia: (fechaDia) => ipcRenderer.invoke('db:getResumenCorteCajaDia', fechaDia),
+  registrarCierreCaja: (payload) => ipcRenderer.invoke('db:registrarCierreCaja', payload),
+  getCierresCaja: (limite) => ipcRenderer.invoke('db:getCierresCaja', limite),
+
+  // Corte de caja (sesiones X/Z)
+  cajaAutorizarGerente: (usuario, pin) => ipcRenderer.invoke('db:cajaAutorizarGerente', usuario, pin),
+  cajaAbrir: (usuarioId, cajaId, fondoInicial) =>
+    ipcRenderer.invoke('db:cajaAbrir', usuarioId, cajaId, fondoInicial),
+  cajaSesionAbierta: (cajaId) => ipcRenderer.invoke('db:cajaSesionAbierta', cajaId),
+  cajaResumen: (sesionId) => ipcRenderer.invoke('db:cajaResumen', sesionId),
+  cajaRegistrarMovimiento: (sesionId, tipo, formaPago, monto, referencia, usuarioId) =>
+    ipcRenderer.invoke('db:cajaRegistrarMovimiento', sesionId, tipo, formaPago, monto, referencia, usuarioId),
+  cajaRegistrarRetiro: (payload) => ipcRenderer.invoke('db:cajaRegistrarRetiro', payload),
+  cajaRegistrarIngreso: (payload) => ipcRenderer.invoke('db:cajaRegistrarIngreso', payload),
+  cajaCorteX: (sesionId, usuarioId) => ipcRenderer.invoke('db:cajaCorteX', sesionId, usuarioId),
+  cajaCorteZ: (sesionId, efectivoContado, usuarioId) =>
+    ipcRenderer.invoke('db:cajaCorteZ', sesionId, efectivoContado, usuarioId),
+  cajaTicket: (corteId) => ipcRenderer.invoke('db:cajaTicket', corteId),
+  cajaMovimientos: (sesionId, limite) => ipcRenderer.invoke('db:cajaMovimientos', sesionId, limite),
+  cajaUltimosCortesZ: (limite) => ipcRenderer.invoke('db:cajaUltimosCortesZ', limite),
+  cajaRegistrarVenta: (folio, total, metodoPago, notas, sesionId, usuarioId) =>
+    ipcRenderer.invoke('db:cajaRegistrarVenta', folio, total, metodoPago, notas, sesionId, usuarioId),
+  cajaCancelarVenta: (ventaId, usuarioId) => ipcRenderer.invoke('db:cajaCancelarVenta', ventaId, usuarioId),
 })

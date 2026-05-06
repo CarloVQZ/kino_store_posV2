@@ -177,6 +177,81 @@
         </div>
       </div>
 
+      <!-- TAB: CORTE DE CAJA -->
+      <div id="tab-corte-caja" class="flex-1 flex flex-col overflow-hidden hidden min-h-0">
+        <div class="p-5 flex flex-col gap-3 border-b border-gray-100 bg-surface-container-low flex-none">
+          <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div>
+              <h2 class="font-h1 text-h2 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[#1D9E75]">point_of_sale</span>
+                Corte de caja
+              </h2>
+              <p class="text-sm text-outline mt-1 max-w-2xl">Sesiones con apertura, movimientos, retiros/ingresos autorizados, corte X (consulta) y corte Z (cierre). Las ventas en catálogo requieren sesión abierta.</p>
+            </div>
+            <div id="caja-estado-banner" class="rounded-xl border border-outline-variant bg-white px-4 py-3 text-sm max-w-md">
+              <p id="caja-estado-texto" class="font-body-m-bold text-outline">Cargando…</p>
+              <p id="caja-folio-sesion" class="text-xs text-outline mt-1 font-mono"></p>
+            </div>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="btn-caja-abrir" class="px-4 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold text-sm hover:bg-[#167e5d]">Abrir caja</button>
+            <button type="button" id="btn-caja-retiro" class="px-4 py-2 rounded-lg border border-outline-variant bg-white font-body-m-bold text-sm hover:bg-gray-50 disabled:opacity-40" disabled>Retiro efectivo</button>
+            <button type="button" id="btn-caja-ingreso" class="px-4 py-2 rounded-lg border border-outline-variant bg-white font-body-m-bold text-sm hover:bg-gray-50 disabled:opacity-40" disabled>Ingreso efectivo</button>
+            <button type="button" id="btn-caja-corte-x" class="px-4 py-2 rounded-lg border border-[#1D9E75] text-[#1D9E75] font-body-m-bold text-sm hover:bg-[#E8F5F1] disabled:opacity-40" disabled>Corte X</button>
+            <button type="button" id="btn-caja-corte-z" class="px-4 py-2 rounded-lg bg-slate-800 text-white font-body-m-bold text-sm hover:bg-slate-900 disabled:opacity-40" disabled>Corte Z</button>
+          </div>
+        </div>
+        <div class="flex-1 overflow-y-auto p-5 space-y-6 bg-surface-container-low">
+          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            <div class="bg-white rounded-xl border border-outline-variant p-4">
+              <p class="text-xs text-outline font-body-m-bold">Fondo inicial</p>
+              <p id="caja-res-fondo" class="font-h1 text-h2 mt-1">$0.00</p>
+            </div>
+            <div class="bg-white rounded-xl border border-outline-variant p-4">
+              <p class="text-xs text-outline font-body-m-bold">Ventas efectivo</p>
+              <p id="caja-res-efectivo" class="font-h1 text-h2 text-[#1D9E75] mt-1">$0.00</p>
+            </div>
+            <div class="bg-white rounded-xl border border-outline-variant p-4">
+              <p class="text-xs text-outline font-body-m-bold">Efectivo esperado</p>
+              <p id="caja-res-esperado" class="font-h1 text-h2 mt-1">$0.00</p>
+            </div>
+            <div class="bg-white rounded-xl border border-outline-variant p-4">
+              <p class="text-xs text-outline font-body-m-bold">Tarjeta / Transf.</p>
+              <p id="caja-res-otros" class="text-sm mt-2"><span id="caja-res-tarjeta">$0.00</span> · <span id="caja-res-transf">$0.00</span></p>
+              <p class="text-xs text-outline mt-2">Movimientos: <span id="caja-res-num-mov">0</span></p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h3 class="font-body-m-bold text-body-m mb-2">Movimientos de la sesión</h3>
+              <div id="caja-lista-movimientos" class="space-y-2 max-h-72 overflow-y-auto text-sm"></div>
+            </div>
+            <div>
+              <h3 class="font-body-m-bold text-body-m mb-2">Últimos cortes Z</h3>
+              <div id="caja-lista-cortes-z" class="space-y-2 max-h-72 overflow-y-auto text-sm"></div>
+            </div>
+          </div>
+          <details class="bg-white rounded-xl border border-outline-variant p-4 max-w-3xl">
+            <summary class="font-body-m-bold cursor-pointer text-sm">Reporte por fecha (ventas del día, sin sesión)</summary>
+            <div class="mt-4 flex flex-col sm:flex-row gap-3 items-end">
+              <div>
+                <label class="text-xs text-outline font-body-m-bold">Fecha</label>
+                <input type="date" id="corte-caja-fecha" class="mt-1 px-3 py-2 border border-outline-variant rounded-lg bg-white text-sm">
+              </div>
+              <button type="button" id="btn-corte-caja-refrescar-dia" class="px-4 py-2 bg-gray-100 rounded-lg font-body-m-bold text-sm">Consultar</button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 text-sm">
+              <div><p class="text-outline text-xs">Efectivo</p><p id="corte-caja-monto-efectivo" class="font-bold">$0</p></div>
+              <div><p class="text-outline text-xs">Tarjeta</p><p id="corte-caja-monto-tarjeta" class="font-bold">$0</p></div>
+              <div><p class="text-outline text-xs">Transfer.</p><p id="corte-caja-monto-transferencia" class="font-bold">$0</p></div>
+              <div><p class="text-outline text-xs">Tickets</p><p id="corte-caja-num-ventas" class="font-bold">0</p></div>
+            </div>
+            <p class="text-xs text-outline mt-2">Total: <span id="corte-caja-monto-total">$0.00</span></p>
+            <div id="corte-caja-historial" class="mt-4 space-y-2 text-xs text-outline hidden"></div>
+          </details>
+        </div>
+      </div>
+
       <!-- TAB: CONFIGURACIÓN -->
       <div id="tab-configuracion" class="flex-1 flex flex-col overflow-hidden hidden min-h-0">
         <div class="flex-none px-5 pt-5 pb-0 border-b border-gray-100 bg-surface-container-low">
@@ -547,8 +622,11 @@
         <h3 id="detalle-titulo" class="font-h1 text-h2">Detalle</h3>
       </div>
       <div id="detalle-contenido" class="p-6 space-y-2 max-h-80 overflow-y-auto"></div>
-      <div class="p-6 border-t border-gray-100 flex justify-end">
-        <button id="btn-cerrar-detalle" class="px-6 py-2 rounded-lg bg-[#1D9E75] text-white hover:bg-[#167e5d] transition-all font-body-m-bold">Cerrar</button>
+      <div class="p-6 border-t border-gray-100 flex flex-wrap justify-between items-center gap-3">
+        <button type="button" id="btn-anular-venta-detalle" class="hidden px-4 py-2 rounded-lg border-2 border-red-500 text-red-600 font-body-m-bold hover:bg-red-50 transition-all">
+          Anular venta
+        </button>
+        <button type="button" id="btn-cerrar-detalle" class="px-6 py-2 rounded-lg bg-[#1D9E75] text-white hover:bg-[#167e5d] transition-all font-body-m-bold ml-auto">Cerrar</button>
       </div>
     </div>
   </div>
@@ -632,11 +710,106 @@
       <span class="material-symbols-outlined">bar_chart</span>
       <span class="text-xs font-medium">Métricas</span>
     </button>
+    <button class="nav-tab hidden" data-tab="corte-caja">
+      <span class="material-symbols-outlined">account_balance_wallet</span>
+      <span class="text-xs font-medium">Corte de caja</span>
+    </button>
     <button class="nav-tab hidden" data-tab="configuracion">
       <span class="material-symbols-outlined">settings</span>
       <span class="text-xs font-medium">Configuración</span>
     </button>
   </nav>
+
+  <!-- Modal: Abrir caja -->
+  <div id="modal-abrir-caja" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="p-6 border-b border-gray-100">
+        <h3 class="font-h1 text-h2">Abrir sesión de caja</h3>
+        <p class="text-sm text-outline mt-2">Confirma el fondo inicial contando efectivo físico en gaveta.</p>
+      </div>
+      <div class="p-6 space-y-4">
+        <div>
+          <label class="block text-sm font-body-m-bold mb-1">Fondo inicial ($)</label>
+          <input id="caja-input-fondo" type="number" min="0" step="0.01" value="0" class="w-full px-3 py-2 border border-outline-variant rounded-lg">
+        </div>
+      </div>
+      <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <button type="button" id="btn-cancelar-abrir-caja" class="px-4 py-2 rounded-lg border border-outline-variant font-body-m-bold">Cancelar</button>
+        <button type="button" id="btn-confirmar-abrir-caja" class="px-6 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold">Abrir caja</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Retiro / Ingreso (autorización gerente) -->
+  <div id="modal-caja-retiro-ingreso" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="p-6 border-b border-gray-100">
+        <h3 id="caja-ri-titulo" class="font-h1 text-h2">Retiro de efectivo</h3>
+        <p class="text-sm text-outline mt-2">Requiere autorización de gerente o administrador.</p>
+      </div>
+      <div class="p-6 space-y-3">
+        <input type="hidden" id="caja-ri-modo" value="retiro">
+        <div>
+          <label class="block text-sm font-body-m-bold mb-1">Monto ($)</label>
+          <input id="caja-ri-monto" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-outline-variant rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm font-body-m-bold mb-1">Motivo</label>
+          <input id="caja-ri-motivo" type="text" class="w-full px-3 py-2 border border-outline-variant rounded-lg" placeholder="Ej. cambio al banco">
+        </div>
+        <div class="pt-2 border-t border-gray-100 space-y-2">
+          <p class="text-xs font-body-m-bold text-outline">Autoriza</p>
+          <input id="caja-ri-auth-usuario" type="text" class="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" placeholder="Usuario gerente/admin">
+          <input id="caja-ri-auth-pin" type="password" maxlength="4" inputmode="numeric" class="w-full px-3 py-2 border border-outline-variant rounded-lg text-sm" placeholder="PIN 4 dígitos">
+        </div>
+      </div>
+      <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <button type="button" id="btn-cancelar-ri-caja" class="px-4 py-2 rounded-lg border border-outline-variant font-body-m-bold">Cancelar</button>
+        <button type="button" id="btn-confirmar-ri-caja" class="px-6 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold">Registrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Corte Z -->
+  <div id="modal-corte-z" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="p-6 border-b border-gray-100">
+        <h3 class="font-h1 text-h2 flex items-center gap-2"><span class="material-symbols-outlined text-[#1D9E75]">lock</span> Corte Z — Cierre de sesión</h3>
+        <p class="text-sm text-outline mt-2">Ingresa el efectivo contado. La sesión se cerrará; no podrás cobrar hasta abrir una nueva.</p>
+      </div>
+      <div class="p-6 space-y-4">
+        <div class="bg-surface-container-low rounded-lg p-3 text-sm space-y-1">
+          <div class="flex justify-between"><span class="text-outline">Efectivo esperado</span><span id="corte-z-esperado" class="font-bold">$0.00</span></div>
+        </div>
+        <div>
+          <label class="block text-sm font-body-m-bold mb-1">Efectivo contado ($)</label>
+          <input id="corte-z-contado" type="number" min="0" step="0.01" class="w-full px-3 py-2 border border-outline-variant rounded-lg">
+        </div>
+        <div class="flex justify-between text-sm py-2 px-3 border rounded-lg">
+          <span class="text-outline">Vista previa diferencia</span>
+          <span id="corte-z-preview-diff" class="font-bold">$0.00</span>
+        </div>
+      </div>
+      <div class="p-6 border-t border-gray-100 flex justify-end gap-3">
+        <button type="button" id="btn-cancelar-corte-z" class="px-4 py-2 rounded-lg border border-outline-variant font-body-m-bold">Cancelar</button>
+        <button type="button" id="btn-confirmar-corte-z" class="px-6 py-2 rounded-lg bg-slate-800 text-white font-body-m-bold">Confirmar corte Z</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Ticket corte (X o Z) -->
+  <div id="modal-ticket-corte" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="p-4 border-b border-gray-100 flex justify-between items-center">
+        <h3 class="font-h1 text-h2">Ticket de corte</h3>
+        <button type="button" id="btn-cerrar-ticket-corte" class="p-2 rounded-lg hover:bg-gray-100"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div id="ticket-corte-body" class="p-6 overflow-y-auto text-sm font-mono whitespace-pre-wrap bg-gray-50"></div>
+      <div class="p-4 border-t border-gray-100 flex justify-end gap-2">
+        <button type="button" id="btn-imprimir-ticket-corte" class="px-4 py-2 rounded-lg border border-outline-variant font-body-m-bold">Imprimir</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Editar/Crear Usuario -->
   <div id="modal-editar-usuario" class="fixed inset-0 bg-black/40 z-50 flex items-center justify-center hidden">

@@ -1,7 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const crypto = require('crypto')
 const db = require('./database/db')
+const cajaService = require('./database/cajaService')
 
 let mainWindow
 
@@ -92,8 +94,6 @@ ipcMain.handle('image:getPath', (_e, filename) => {
   return path.join(imagesDir, filename)
 })
 // Usuarios y Autenticación
-const crypto = require('crypto')
-
 ipcMain.handle('db:getUsuariosActivos', () => {
   return db.prepare('SELECT id, nombre, usuario, rol FROM usuario WHERE activo = 1').all()
 })
@@ -176,6 +176,153 @@ ipcMain.handle('db:setDescuentoReglaActivo', (_e, id, activo) => {
 
 ipcMain.handle('db:deleteDescuentoRegla', (_e, id) => {
   return db.prepare('DELETE FROM descuento_regla WHERE id=?').run(id)
+})
+
+// Corte de caja (cierre diario)
+ipcMain.handle('db:getResumenCorteCajaDia', (_e, fechaDia) => {
+  const rows = db.prepare(`
+    SELECT metodo_pago, COUNT(*) AS cnt, COALESCE(SUM(total), 0) AS suma
+    FROM venta
+    WHERE date(fecha) = date(?)
+    GROUP BY metodo_pago
+  `).all(fechaDia)
+
+  let ventasEfectivo = 0
+  let ventasTarjeta = 0
+  let ventasTransferencia = 0
+  let numVentas = 0
+  let totalVentas = 0
+
+  for (const r of rows) {
+    numVentas += r.cnt
+    totalVentas += r.suma
+    if (r.metodo_pago === 'efectivo') ventasEfectivo += r.suma
+    else if (r.metodo_pago === 'tarjeta') ventasTarjeta += r.suma
+    else if (r.metodo_pago === 'transferencia') ventasTransferencia += r.suma
+  }
+
+  return {
+    fecha: fechaDia,
+    ventasEfectivo,
+    ventasTarjeta,
+    ventasTransferencia,
+    totalVentas,
+    numVentas
+  }
+})
+
+ipcMain.handle('db:registrarCierreCaja', (_e, payload) => {
+  const {
+    fechaOperacion,
+    usuarioId,
+    ventasEfectivo,
+    ventasTarjeta,
+    ventasTransferencia,
+    totalVentas,
+    numVentas,
+    efectivoContado,
+    notas
+  } = payload
+
+  const contado = Number(efectivoContado)
+  const ve = Number(ventasEfectivo) || 0
+  const diferencia = contado - ve
+
+  return db.prepare(`
+    INSERT INTO cierre_caja (
+      fecha_operacion, usuario_id,
+      ventas_efectivo, ventas_tarjeta, ventas_transferencia,
+      total_ventas, num_ventas, efectivo_contado, diferencia, notas
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    fechaOperacion,
+    usuarioId || null,
+    ve,
+    Number(ventasTarjeta) || 0,
+    Number(ventasTransferencia) || 0,
+    Number(totalVentas) || 0,
+    Number(numVentas) || 0,
+    contado,
+    diferencia,
+    notas || null
+  )
+})
+
+ipcMain.handle('db:getCierresCaja', (_e, limite) => {
+  const n = Math.min(Math.max(parseInt(limite, 10) || 30, 1), 200)
+  return db.prepare(`
+    SELECT c.*, u.nombre AS usuario_nombre
+    FROM cierre_caja c
+    LEFT JOIN usuario u ON u.id = c.usuario_id
+    ORDER BY c.fecha_cierre DESC
+    LIMIT ?
+  `).all(n)
+})
+
+// ── Corte de caja (sesiones, movimientos, X/Z) ──
+ipcMain.handle('db:cajaAutorizarGerente', (_e, usuario, pin) => {
+  const pinHash = crypto.createHash('sha256').update(String(pin)).digest('hex')
+  const u = db.prepare(
+    'SELECT id, nombre, rol, usuario FROM usuario WHERE usuario = ? AND pin = ? AND activo = 1'
+  ).get(usuario, pinHash)
+  if (!u || (u.rol !== 'admin' && u.rol !== 'gerente')) {
+    throw new Error('Autorización denegada: se requiere usuario gerente o administrador')
+  }
+  return { id: u.id, nombre: u.nombre, rol: u.rol, usuario: u.usuario }
+})
+
+ipcMain.handle('db:cajaAbrir', (_e, usuarioId, cajaId, fondoInicial) => {
+  return cajaService.abrirCaja(usuarioId, cajaId, fondoInicial)
+})
+
+ipcMain.handle('db:cajaSesionAbierta', (_e, cajaId) => {
+  return cajaService.getSesionAbiertaPorCaja(cajaId)
+})
+
+ipcMain.handle('db:cajaResumen', (_e, sesionId) => {
+  return cajaService.calcularResumenSesion(sesionId)
+})
+
+ipcMain.handle('db:cajaRegistrarMovimiento', (_e, sesionId, tipo, formaPago, monto, referencia, usuarioId) => {
+  return cajaService.registrarMovimiento(sesionId, tipo, formaPago, monto, referencia, usuarioId)
+})
+
+ipcMain.handle('db:cajaRegistrarRetiro', (_e, payload) => {
+  const { sesionId, monto, motivo, usuarioId, autorizadoPorId } = payload
+  return cajaService.registrarRetiro(sesionId, monto, motivo, usuarioId, autorizadoPorId)
+})
+
+ipcMain.handle('db:cajaRegistrarIngreso', (_e, payload) => {
+  const { sesionId, monto, motivo, usuarioId, autorizadoPorId } = payload
+  return cajaService.registrarIngreso(sesionId, monto, motivo, usuarioId, autorizadoPorId)
+})
+
+ipcMain.handle('db:cajaCorteX', (_e, sesionId, usuarioId) => {
+  return cajaService.corteParcialX(sesionId, usuarioId)
+})
+
+ipcMain.handle('db:cajaCorteZ', (_e, sesionId, efectivoContado, usuarioId) => {
+  return cajaService.corteTotalZ(sesionId, efectivoContado, usuarioId)
+})
+
+ipcMain.handle('db:cajaTicket', (_e, corteId) => {
+  return cajaService.generarTicketCorte(corteId)
+})
+
+ipcMain.handle('db:cajaMovimientos', (_e, sesionId, limite) => {
+  return cajaService.listarMovimientosSesion(sesionId, limite)
+})
+
+ipcMain.handle('db:cajaUltimosCortesZ', (_e, limite) => {
+  return cajaService.ultimosCortesZ(limite)
+})
+
+ipcMain.handle('db:cajaRegistrarVenta', (_e, folio, total, metodoPago, notas, sesionId, usuarioId) => {
+  return cajaService.registrarVentaEnSesion(folio, total, metodoPago, notas, sesionId, usuarioId)
+})
+
+ipcMain.handle('db:cajaCancelarVenta', (_e, ventaId, usuarioId) => {
+  return cajaService.cancelarVentaEnSesion(ventaId, usuarioId)
 })
 
 // Ventas

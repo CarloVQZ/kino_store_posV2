@@ -2,6 +2,7 @@
 let carrito = []
 let metodoSeleccionado = 'efectivo'
 let tabActual = 'catalogo'
+const CAJA_DEFAULT_ID = 1
 
 // Configuración (reglas de descuento desde BD; varias reglas, cada una con toggle)
 let config = {
@@ -52,6 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-confirmar-si').addEventListener('click', () => resolverConfirm(true))
   document.getElementById('btn-confirmar-no').addEventListener('click', () => resolverConfirm(false))
   document.getElementById('btn-cerrar-detalle').addEventListener('click', () => cerrarModal('modal-detalle'))
+  document.getElementById('btn-anular-venta-detalle').addEventListener('click', ejecutarAnularVentaDetalle)
 
   // Métricas range buttons
   document.querySelectorAll('.metrics-range-btn').forEach(btn => {
@@ -75,6 +77,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-nuevo-usuario').addEventListener('click', mostrarModalNuevoUsuario)
   document.getElementById('btn-cancelar-usuario').addEventListener('click', () => cerrarModal('modal-editar-usuario'))
   document.getElementById('btn-submit-usuario').addEventListener('click', submitEditarUsuario)
+
+  // Corte de caja
+  const corteCajaFecha = document.getElementById('corte-caja-fecha')
+  if (corteCajaFecha) {
+    corteCajaFecha.value = fechaLocalYYYYMMDD()
+  }
+  document.getElementById('btn-corte-caja-refrescar-dia')?.addEventListener('click', () => cargarReporteDiaCorteCaja())
+  document.getElementById('btn-caja-abrir').addEventListener('click', () => abrirModal('modal-abrir-caja'))
+  document.getElementById('btn-cancelar-abrir-caja').addEventListener('click', () => cerrarModal('modal-abrir-caja'))
+  document.getElementById('btn-confirmar-abrir-caja').addEventListener('click', confirmarAbrirCaja)
+  document.getElementById('btn-caja-retiro').addEventListener('click', () => abrirModalRetiroIngreso('retiro'))
+  document.getElementById('btn-caja-ingreso').addEventListener('click', () => abrirModalRetiroIngreso('ingreso'))
+  document.getElementById('btn-cancelar-ri-caja').addEventListener('click', () => cerrarModal('modal-caja-retiro-ingreso'))
+  document.getElementById('btn-confirmar-ri-caja').addEventListener('click', confirmarRetiroIngreso)
+  document.getElementById('btn-caja-corte-x').addEventListener('click', ejecutarCorteX)
+  document.getElementById('btn-caja-corte-z').addEventListener('click', abrirModalCorteZ)
+  document.getElementById('btn-cancelar-corte-z').addEventListener('click', () => cerrarModal('modal-corte-z'))
+  document.getElementById('btn-confirmar-corte-z').addEventListener('click', confirmarCorteZ)
+  document.getElementById('corte-z-contado').addEventListener('input', actualizarPreviewCorteZ)
+  document.getElementById('btn-cerrar-ticket-corte').addEventListener('click', () => cerrarModal('modal-ticket-corte'))
+  document.getElementById('btn-imprimir-ticket-corte').addEventListener('click', imprimirTicketCorte)
 
   // Configuración — descuentos
   document.getElementById('btn-guardar-descuentos').addEventListener('click', guardarDescuentosReglas)
@@ -321,18 +344,31 @@ async function cobrar() {
     return
   }
 
+  if (!currentUser) {
+    await mostrarAlerta('Debes iniciar sesión para cobrar')
+    return
+  }
+
   try {
+    const sesionCaja = await window.db.cajaSesionAbierta(CAJA_DEFAULT_ID)
+    if (!sesionCaja) {
+      await mostrarAlerta('No hay sesión de caja abierta. Ve a «Corte de caja» y abre la caja antes de cobrar.')
+      return
+    }
+
     const folio = 'V' + Date.now().toString().slice(-8)
     const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0)
     const descuento = calcularDescuentoSubtotal(subtotal)
     const total = subtotal - descuento
 
-    // Crear venta
-    await window.db.addVenta(folio, total, metodoSeleccionado, '')
-
-    // Obtener el ID de la venta
-    const ventas = await window.db.getVentas()
-    const ventaId = ventas[0].id
+    const ventaId = await window.db.cajaRegistrarVenta(
+      folio,
+      total,
+      metodoSeleccionado,
+      '',
+      sesionCaja.id,
+      currentUser.id
+    )
 
     // Agregar detalles y actualizar stock
     for (const item of carrito) {
@@ -346,6 +382,7 @@ async function cobrar() {
     await mostrarAlerta(`✓ Venta completada\nFolio: ${folio}\nTotal: $${total.toFixed(2)}`)
     limpiarCarrito()
     await cargarProductos()
+    refrescarModuloCaja().catch(() => {})
   } catch (err) {
     await mostrarAlerta('Error al completar la venta: ' + err.message)
     console.error(err)
@@ -420,6 +457,7 @@ function cambiarTab(tabNombre, button) {
   document.getElementById('tab-compras').classList.add('hidden')
   document.getElementById('tab-historial').classList.add('hidden')
   document.getElementById('tab-metricas').classList.add('hidden')
+  document.getElementById('tab-corte-caja').classList.add('hidden')
   document.getElementById('tab-configuracion').classList.add('hidden')
 
   // Mostrar el tab seleccionado
@@ -440,6 +478,11 @@ function cambiarTab(tabNombre, button) {
       cargarHistorial()
     } else if (tabNombre === 'metricas') {
       cargarMetricas()
+    } else if (tabNombre === 'corte-caja') {
+      const corteCajaFecha = document.getElementById('corte-caja-fecha')
+      if (corteCajaFecha && !corteCajaFecha.value) corteCajaFecha.value = fechaLocalYYYYMMDD()
+      refrescarModuloCaja()
+      cargarReporteDiaCorteCaja()
     } else if (tabNombre === 'configuracion') {
       cargarConfiguracion()
       const btnDescuentos = document.querySelector('[data-config-subtab="descuentos"]')
@@ -542,9 +585,25 @@ async function actualizarStockInventario(id, button) {
   }
 }
 
+let sesionAbiertaHistorialRef = null
+let ventaDetalleModalRef = null
+
+function puedeAnularVentaHistorial(venta) {
+  if (!currentUser || !PERMISOS[currentUser.rol]?.cancelarVenta) return false
+  const st = venta.estado || 'activa'
+  if (st === 'cancelada') return false
+  if (!venta.sesion_id) return false
+  if (!sesionAbiertaHistorialRef || sesionAbiertaHistorialRef.id !== venta.sesion_id) return false
+  return true
+}
+
 async function cargarHistorial() {
   try {
-    const ventas = await window.db.getVentas()
+    const [ventas, sesion] = await Promise.all([
+      window.db.getVentas(),
+      window.db.cajaSesionAbierta(CAJA_DEFAULT_ID)
+    ])
+    sesionAbiertaHistorialRef = sesion
     mostrarHistorial(ventas)
   } catch (err) {
     console.error('Error cargando historial:', err)
@@ -565,22 +624,29 @@ function mostrarHistorial(ventas) {
   ventas.forEach(venta => {
     const fecha = new Date(venta.fecha).toLocaleDateString('es-ES')
     const hora = new Date(venta.fecha).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+    const cancelada = (venta.estado || 'activa') === 'cancelada'
 
     const card = document.createElement('div')
-    card.className = 'p-4 bg-white border border-outline-variant rounded-xl hover:border-primary-container transition-all cursor-pointer'
+    card.className =
+      'p-4 bg-white border border-outline-variant rounded-xl hover:border-primary-container transition-all cursor-pointer' +
+      (cancelada ? ' opacity-65' : '')
+    const badgeCancel = cancelada
+      ? '<span class="inline-block mt-1 text-xs font-bold text-error">Cancelada</span>'
+      : ''
     card.innerHTML = `
       <div class="flex justify-between items-start mb-2">
         <div>
           <p class="font-body-m-bold">Folio: ${venta.folio}</p>
           <p class="text-body-m text-outline">${fecha} ${hora}</p>
+          ${badgeCancel}
         </div>
         <div class="text-right">
-          <p class="font-display-price text-h2 text-[#1D9E75]">$${venta.total.toFixed(2)}</p>
+          <p class="font-display-price text-h2 ${cancelada ? 'text-outline line-through' : 'text-[#1D9E75]'}">$${venta.total.toFixed(2)}</p>
           <p class="text-label-sm text-outline">${venta.metodo_pago}</p>
         </div>
       </div>
     `
-    card.addEventListener('click', () => verDetalleVenta(venta.id))
+    card.addEventListener('click', () => verDetalleVenta(venta))
     lista.appendChild(card)
   })
 
@@ -588,20 +654,59 @@ function mostrarHistorial(ventas) {
   container.appendChild(lista)
 }
 
-async function verDetalleVenta(ventaId) {
+async function verDetalleVenta(venta) {
   try {
-    const detalle = await window.db.getDetalleVenta(ventaId)
+    ventaDetalleModalRef = venta
+    const detalle = await window.db.getDetalleVenta(venta.id)
     document.getElementById('detalle-titulo').textContent = 'Detalle de Venta'
     const total = detalle.reduce((sum, d) => sum + d.subtotal, 0)
-    document.getElementById('detalle-contenido').innerHTML = detalle.map(d => `
+    const st = venta.estado || 'activa'
+    const encabezado = `
+      <div class="text-sm text-outline mb-3 pb-3 border-b border-outline-variant">
+        <p><span class="font-body-m-bold text-on-surface">Folio:</span> ${venta.folio}</p>
+        <p><span class="font-body-m-bold text-on-surface">Estado:</span> ${st === 'cancelada' ? '<span class="text-error">Cancelada</span>' : 'Activa'}</p>
+        <p><span class="font-body-m-bold text-on-surface">Pago:</span> ${venta.metodo_pago}</p>
+      </div>`
+    document.getElementById('detalle-contenido').innerHTML =
+      encabezado +
+      detalle.map(d => `
       <div class="flex justify-between p-2 bg-gray-50 rounded">
         <span>${d.nombre} x${d.cantidad}</span>
         <span class="font-body-m-bold">$${d.subtotal.toFixed(2)}</span>
       </div>
-    `).join('') + `<div class="flex justify-between pt-2 border-t font-h2 text-h2"><span>Total</span><span class="text-[#1D9E75]">$${total.toFixed(2)}</span></div>`
+    `).join('') +
+      `<div class="flex justify-between pt-2 border-t font-h2 text-h2"><span>Total</span><span class="text-[#1D9E75]">$${total.toFixed(2)}</span></div>`
+
+    const btnAnular = document.getElementById('btn-anular-venta-detalle')
+    if (btnAnular) {
+      btnAnular.classList.toggle('hidden', !puedeAnularVentaHistorial(venta))
+    }
     abrirModal('modal-detalle')
   } catch (err) {
     console.error('Error cargando detalle:', err)
+  }
+}
+
+async function ejecutarAnularVentaDetalle() {
+  const v = ventaDetalleModalRef
+  if (!v || !currentUser) return
+  if (!puedeAnularVentaHistorial(v)) {
+    await mostrarAlerta('No puedes anular esta venta (permiso, estado o sesión de caja cerrada).')
+    return
+  }
+  const ok = await mostrarConfirm(
+    `¿Anular la venta ${v.folio}? Se devolverá stock y se ajustará el corte de caja de la sesión abierta.`
+  )
+  if (!ok) return
+  try {
+    await window.db.cajaCancelarVenta(v.id, currentUser.id)
+    cerrarModal('modal-detalle')
+    ventaDetalleModalRef = null
+    await mostrarAlerta('✓ Venta anulada correctamente')
+    await cargarHistorial()
+    refrescarModuloCaja().catch(() => {})
+  } catch (err) {
+    await mostrarAlerta(err.message || String(err))
   }
 }
 
@@ -1248,6 +1353,329 @@ function seleccionarRangoMetricas(rango, button) {
   cargarMetricas()
 }
 
+// ═══════════════════════════════════════════════════════════════
+// CORTE DE CAJA (sesiones, X/Z, retiros)
+// ═══════════════════════════════════════════════════════════════
+
+let sesionCajaActivaCache = null
+let ultimoResumenCorteZ = null
+
+function fechaLocalYYYYMMDD() {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function obtenerFechaCorteCajaSeleccionada() {
+  const el = document.getElementById('corte-caja-fecha')
+  return (el && el.value) ? el.value : fechaLocalYYYYMMDD()
+}
+
+function fmtMoney(n) {
+  return `$${Number(n || 0).toFixed(2)}`
+}
+
+function construirTextoTicketX(res) {
+  const s = res.sesion
+  const u = res.usuario_nombre || '—'
+  const caja = res.caja_codigo || 'C1'
+  return [
+    '========== CORTE X (PARCIAL) ==========',
+    'NO CIERRA SESIÓN — Solo consulta',
+    `Caja: ${caja} · Sesión: ${s.folio_sesion}`,
+    `Cajero apertura: ${u}`,
+    `Apertura: ${s.hora_apertura}`,
+    '----------------------------------------',
+    `Fondo inicial:        ${fmtMoney(res.fondoInicial)}`,
+    `Ventas efectivo:      ${fmtMoney(res.totalVentasEfectivo)}`,
+    `Ventas tarjeta:       ${fmtMoney(res.totalVentasTarjeta)}`,
+    `Ventas transferencia: ${fmtMoney(res.totalVentasOtro)}`,
+    `Devoluciones/canc. efc: ${fmtMoney(res.totalDevoluciones)}`,
+    `Retiros efectivo:     ${fmtMoney(res.totalRetiros)}`,
+    `Ingresos efectivo:    ${fmtMoney(res.totalIngresos)}`,
+    '----------------------------------------',
+    `Efectivo esperado:    ${fmtMoney(res.efectivoEsperado)}`,
+    `Transacciones (mov.): ${res.numTransacciones}`,
+    '========================================'
+  ].join('\n')
+}
+
+function construirTextoTicketZ(t) {
+  return [
+    '========== CORTE Z (CIERRE) ==========',
+    `Folio corte: ${t.folioCorte}`,
+    `Folio sesión: ${t.folioSesion}`,
+    `Caja: ${t.caja.codigo} ${t.caja.nombre}`,
+    `Periodo: ${t.periodo.inicio} → ${t.periodo.fin}`,
+    `Cajero apertura: ${t.cajeroApertura}`,
+    `Usuario corte: ${t.usuarioCorte}`,
+    '----------------------------------------',
+    `Fondo inicial:        ${fmtMoney(t.fondoInicial)}`,
+    `Ventas efectivo:      ${fmtMoney(t.ventasEfectivo)}`,
+    `Ventas tarjeta:       ${fmtMoney(t.ventasTarjeta)}`,
+    `Otras formas:         ${fmtMoney(t.ventasOtro)}`,
+    `Devoluciones/canc.:   ${fmtMoney(t.totalDevoluciones)}`,
+    `Retiros:              ${fmtMoney(t.totalRetiros)}`,
+    `Ingresos:             ${fmtMoney(t.totalIngresos)}`,
+    '----------------------------------------',
+    `Efectivo esperado:    ${fmtMoney(t.efectivoEsperado)}`,
+    `Efectivo contado:     ${fmtMoney(t.efectivoContado)}`,
+    `Diferencia:           ${fmtMoney(t.diferencia)} (${t.diferenciaLabel})`,
+    `Total transacciones:  ${t.numTransacciones}`,
+    `Hora corte:           ${t.horaCorte}`,
+    '========================================'
+  ].join('\n')
+}
+
+function mostrarTicketCorte(texto) {
+  document.getElementById('ticket-corte-body').textContent = texto
+  abrirModal('modal-ticket-corte')
+}
+
+function imprimirTicketCorte() {
+  const texto = document.getElementById('ticket-corte-body').textContent
+  const w = window.open('', '_blank', 'width=400,height=600')
+  if (!w) return
+  w.document.write(`<pre style="font-family:monospace;padding:16px;">${texto.replace(/</g, '&lt;')}</pre>`)
+  w.document.close()
+  w.focus()
+  w.print()
+  w.close()
+}
+
+async function refrescarModuloCaja() {
+  sesionCajaActivaCache = null
+  const estadoTxt = document.getElementById('caja-estado-texto')
+  const folioEl = document.getElementById('caja-folio-sesion')
+  const btnAbrir = document.getElementById('btn-caja-abrir')
+  const btnRet = document.getElementById('btn-caja-retiro')
+  const btnIng = document.getElementById('btn-caja-ingreso')
+  const btnX = document.getElementById('btn-caja-corte-x')
+  const btnZ = document.getElementById('btn-caja-corte-z')
+
+  try {
+    const sesion = await window.db.cajaSesionAbierta(CAJA_DEFAULT_ID)
+    sesionCajaActivaCache = sesion
+
+    if (!sesion) {
+      estadoTxt.textContent = 'Sin sesión abierta — abre caja para habilitar cobros.'
+      folioEl.textContent = ''
+      btnAbrir.disabled = false
+      btnRet.disabled = true
+      btnIng.disabled = true
+      btnX.disabled = true
+      btnZ.disabled = true
+      document.getElementById('caja-res-fondo').textContent = fmtMoney(0)
+      document.getElementById('caja-res-efectivo').textContent = fmtMoney(0)
+      document.getElementById('caja-res-esperado').textContent = fmtMoney(0)
+      document.getElementById('caja-res-tarjeta').textContent = fmtMoney(0)
+      document.getElementById('caja-res-transf').textContent = fmtMoney(0)
+      document.getElementById('caja-res-num-mov').textContent = '0'
+      document.getElementById('caja-lista-movimientos').innerHTML =
+        '<p class="text-outline text-sm">No hay movimientos.</p>'
+    } else {
+      estadoTxt.textContent = `Sesión abierta · ${sesion.usuario_nombre}`
+      folioEl.textContent = `Folio: ${sesion.folio_sesion} · Caja ${sesion.caja_codigo || 'C1'}`
+      btnAbrir.disabled = true
+      btnRet.disabled = false
+      btnIng.disabled = false
+      btnX.disabled = false
+      btnZ.disabled = false
+
+      const res = await window.db.cajaResumen(sesion.id)
+      document.getElementById('caja-res-fondo').textContent = fmtMoney(res.fondoInicial)
+      document.getElementById('caja-res-efectivo').textContent = fmtMoney(res.totalVentasEfectivo)
+      document.getElementById('caja-res-esperado').textContent = fmtMoney(res.efectivoEsperado)
+      document.getElementById('caja-res-tarjeta').textContent = fmtMoney(res.totalVentasTarjeta)
+      document.getElementById('caja-res-transf').textContent = fmtMoney(res.totalVentasOtro)
+      document.getElementById('caja-res-num-mov').textContent = String(res.numTransacciones)
+
+      const movs = await window.db.cajaMovimientos(sesion.id, 60)
+      const listM = document.getElementById('caja-lista-movimientos')
+      listM.innerHTML = ''
+      if (!movs.length) {
+        listM.innerHTML = '<p class="text-outline text-sm">Sin movimientos aún.</p>'
+      } else {
+        movs.forEach(m => {
+          const div = document.createElement('div')
+          div.className = 'bg-white border border-outline-variant rounded-lg px-3 py-2 flex justify-between gap-2'
+          div.innerHTML = `
+            <span class="text-xs">${m.hora} · <strong>${m.tipo}</strong> ${m.forma_pago} ${m.estado === 'cancelado' ? '(anul.)' : ''}</span>
+            <span class="font-bold">${fmtMoney(m.monto)}</span>`
+          listM.appendChild(div)
+        })
+      }
+    }
+
+    const cortes = await window.db.cajaUltimosCortesZ(12)
+    const listC = document.getElementById('caja-lista-cortes-z')
+    listC.innerHTML = ''
+    if (!cortes.length) {
+      listC.innerHTML = '<p class="text-outline text-sm">Aún no hay cortes Z.</p>'
+    } else {
+      cortes.forEach(c => {
+        const div = document.createElement('button')
+        div.type = 'button'
+        div.className =
+          'w-full text-left bg-white border border-outline-variant rounded-lg px-3 py-2 hover:bg-gray-50 text-sm'
+        div.innerHTML = `<span class="font-body-m-bold">${c.folio_corte}</span> · ${c.hora_corte} · Diff ${fmtMoney(c.diferencia)}`
+        div.addEventListener('click', async () => {
+          try {
+            const ticket = await window.db.cajaTicket(c.id)
+            mostrarTicketCorte(construirTextoTicketZ(ticket))
+          } catch (e) {
+            await mostrarAlerta(e.message)
+          }
+        })
+        listC.appendChild(div)
+      })
+    }
+  } catch (err) {
+    console.error(err)
+    estadoTxt.textContent = 'Error al cargar estado de caja.'
+  }
+}
+
+async function confirmarAbrirCaja() {
+  if (!currentUser) return
+  const fondo = parseFloat(document.getElementById('caja-input-fondo').value)
+  if (Number.isNaN(fondo) || fondo < 0) {
+    await mostrarAlerta('Fondo inicial inválido')
+    return
+  }
+  try {
+    await window.db.cajaAbrir(currentUser.id, CAJA_DEFAULT_ID, fondo)
+    cerrarModal('modal-abrir-caja')
+    await mostrarAlerta('✓ Caja abierta correctamente')
+    await refrescarModuloCaja()
+  } catch (err) {
+    await mostrarAlerta(err.message || String(err))
+  }
+}
+
+function abrirModalRetiroIngreso(modo) {
+  document.getElementById('caja-ri-modo').value = modo
+  document.getElementById('caja-ri-titulo').textContent = modo === 'ingreso' ? 'Ingreso de efectivo' : 'Retiro de efectivo'
+  document.getElementById('caja-ri-monto').value = ''
+  document.getElementById('caja-ri-motivo').value = ''
+  document.getElementById('caja-ri-auth-usuario').value = ''
+  document.getElementById('caja-ri-auth-pin').value = ''
+  abrirModal('modal-caja-retiro-ingreso')
+}
+
+async function confirmarRetiroIngreso() {
+  if (!currentUser || !sesionCajaActivaCache) {
+    await mostrarAlerta('Sesión de caja no disponible')
+    return
+  }
+  const modo = document.getElementById('caja-ri-modo').value
+  const monto = parseFloat(document.getElementById('caja-ri-monto').value)
+  const motivo = document.getElementById('caja-ri-motivo').value.trim()
+  const authUser = document.getElementById('caja-ri-auth-usuario').value.trim()
+  const authPin = document.getElementById('caja-ri-auth-pin').value.trim()
+
+  if (Number.isNaN(monto) || monto <= 0) {
+    await mostrarAlerta('Monto inválido')
+    return
+  }
+  if (!motivo) {
+    await mostrarAlerta('Indica un motivo')
+    return
+  }
+  if (!authUser || authPin.length !== 4) {
+    await mostrarAlerta('Autorización: usuario y PIN (4 dígitos) del gerente o admin')
+    return
+  }
+
+  try {
+    const auth = await window.db.cajaAutorizarGerente(authUser, authPin)
+    const payload = {
+      sesionId: sesionCajaActivaCache.id,
+      monto,
+      motivo,
+      usuarioId: currentUser.id,
+      autorizadoPorId: auth.id
+    }
+    if (modo === 'ingreso') await window.db.cajaRegistrarIngreso(payload)
+    else await window.db.cajaRegistrarRetiro(payload)
+    cerrarModal('modal-caja-retiro-ingreso')
+    await mostrarAlerta('✓ Movimiento registrado')
+    await refrescarModuloCaja()
+  } catch (err) {
+    await mostrarAlerta(err.message || String(err))
+  }
+}
+
+async function ejecutarCorteX() {
+  if (!currentUser || !sesionCajaActivaCache) return
+  try {
+    const res = await window.db.cajaCorteX(sesionCajaActivaCache.id, currentUser.id)
+    const enriquecido = {
+      ...res,
+      usuario_nombre: sesionCajaActivaCache.usuario_nombre,
+      caja_codigo: sesionCajaActivaCache.caja_codigo
+    }
+    mostrarTicketCorte(construirTextoTicketX(enriquecido))
+    await refrescarModuloCaja()
+  } catch (err) {
+    await mostrarAlerta(err.message || String(err))
+  }
+}
+
+function abrirModalCorteZ() {
+  if (!sesionCajaActivaCache) return
+  document.getElementById('corte-z-contado').value = ''
+  window.db.cajaResumen(sesionCajaActivaCache.id).then(res => {
+    document.getElementById('corte-z-esperado').textContent = fmtMoney(res.efectivoEsperado)
+    ultimoResumenCorteZ = res
+    actualizarPreviewCorteZ()
+    abrirModal('modal-corte-z')
+  }).catch(() => {})
+}
+
+function actualizarPreviewCorteZ() {
+  const esp = ultimoResumenCorteZ ? Number(ultimoResumenCorteZ.efectivoEsperado) : 0
+  const c = parseFloat(document.getElementById('corte-z-contado').value)
+  const diff = (Number.isNaN(c) ? 0 : c) - esp
+  document.getElementById('corte-z-preview-diff').textContent = (diff > 0 ? '+' : '') + fmtMoney(diff)
+}
+
+async function confirmarCorteZ() {
+  if (!currentUser || !sesionCajaActivaCache) return
+  const raw = document.getElementById('corte-z-contado').value
+  const contado = parseFloat(raw)
+  if (raw === '' || Number.isNaN(contado)) {
+    await mostrarAlerta('Debes ingresar el efectivo contado')
+    return
+  }
+  try {
+    const out = await window.db.cajaCorteZ(sesionCajaActivaCache.id, contado, currentUser.id)
+    cerrarModal('modal-corte-z')
+    const ticket = await window.db.cajaTicket(out.corteId)
+    mostrarTicketCorte(construirTextoTicketZ(ticket))
+    await mostrarAlerta(`Corte Z registrado · ${out.folioCorte}`)
+    await refrescarModuloCaja()
+  } catch (err) {
+    await mostrarAlerta(err.message || String(err))
+  }
+}
+
+async function cargarReporteDiaCorteCaja() {
+  const fecha = obtenerFechaCorteCajaSeleccionada()
+  try {
+    const resumen = await window.db.getResumenCorteCajaDia(fecha)
+    document.getElementById('corte-caja-monto-efectivo').textContent = fmtMoney(resumen.ventasEfectivo)
+    document.getElementById('corte-caja-monto-tarjeta').textContent = fmtMoney(resumen.ventasTarjeta)
+    document.getElementById('corte-caja-monto-transferencia').textContent = fmtMoney(resumen.ventasTransferencia)
+    document.getElementById('corte-caja-monto-total').textContent = fmtMoney(resumen.totalVentas)
+    document.getElementById('corte-caja-num-ventas').textContent = String(resumen.numVentas || 0)
+  } catch (err) {
+    console.error(err)
+  }
+}
+
 async function cargarMetricas() {
   const { inicio, fin } = obtenerFechasRango(metricasRango)
 
@@ -1575,31 +2003,34 @@ let currentUser = null
 // ── Mapa de permisos por rol ──
 const PERMISOS = {
   admin: {
-    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'configuracion'],
+    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'corte-caja', 'configuracion'],
     editarProducto: true,
     agregarProducto: true,
     cambiarPrecios: true,
     nuevaCompra: true,
     confirmarCompra: true,
-    gestionUsuarios: true
+    gestionUsuarios: true,
+    cancelarVenta: true
   },
   gerente: {
-    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas'],
+    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'corte-caja'],
     editarProducto: true,
     agregarProducto: true,
     cambiarPrecios: false,
     nuevaCompra: true,
     confirmarCompra: true,
-    gestionUsuarios: false
+    gestionUsuarios: false,
+    cancelarVenta: true
   },
   cajero: {
-    tabs: ['catalogo', 'historial'],
+    tabs: ['catalogo', 'historial', 'corte-caja'],
     editarProducto: false,
     agregarProducto: false,
     cambiarPrecios: false,
     nuevaCompra: false,
     confirmarCompra: false,
-    gestionUsuarios: false
+    gestionUsuarios: false,
+    cancelarVenta: false
   }
 }
 
@@ -1665,6 +2096,7 @@ function handleLoginSuccess(user) {
   document.getElementById('btn-logout').classList.remove('hidden')
 
   applyRoleRestrictions(user.rol)
+  refrescarModuloCaja().catch(() => {})
 }
 
 // ── Fase 2: Aplicar restricciones de rol ──
@@ -1719,7 +2151,7 @@ function applyRoleRestrictions(rol) {
 function resetRoleRestrictions() {
   document.querySelectorAll('.nav-tab').forEach(tab => {
     // Ocultar tabs solo admin hasta que aplique el rol
-    if (tab.dataset.tab === 'usuarios' || tab.dataset.tab === 'configuracion') {
+    if (tab.dataset.tab === 'usuarios' || tab.dataset.tab === 'configuracion' || tab.dataset.tab === 'corte-caja') {
       tab.style.display = 'none'
     } else {
       tab.style.display = 'flex'

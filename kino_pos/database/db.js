@@ -86,6 +86,81 @@ db.exec(`
     monto_minimo  REAL NOT NULL DEFAULT 0,
     porcentaje    REAL NOT NULL DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS cierre_caja (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha_cierre          TEXT NOT NULL DEFAULT (datetime('now')),
+    fecha_operacion       TEXT NOT NULL,
+    usuario_id            INTEGER REFERENCES usuario(id),
+    ventas_efectivo       REAL NOT NULL DEFAULT 0,
+    ventas_tarjeta        REAL NOT NULL DEFAULT 0,
+    ventas_transferencia  REAL NOT NULL DEFAULT 0,
+    total_ventas          REAL NOT NULL DEFAULT 0,
+    num_ventas            INTEGER NOT NULL DEFAULT 0,
+    efectivo_contado      REAL NOT NULL,
+    diferencia            REAL NOT NULL,
+    notas                 TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS caja (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo      TEXT NOT NULL UNIQUE,
+    nombre      TEXT NOT NULL,
+    activa      INTEGER NOT NULL DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS sesion_caja (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    caja_id         INTEGER NOT NULL REFERENCES caja(id),
+    usuario_id      INTEGER NOT NULL REFERENCES usuario(id),
+    folio_sesion    TEXT NOT NULL UNIQUE,
+    fondo_inicial   REAL NOT NULL DEFAULT 0,
+    hora_apertura   TEXT NOT NULL DEFAULT (datetime('now')),
+    hora_cierre     TEXT,
+    estado          TEXT NOT NULL DEFAULT 'abierta' CHECK(estado IN ('abierta','cerrada'))
+  );
+
+  CREATE TABLE IF NOT EXISTS movimiento_caja (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    sesion_id       INTEGER NOT NULL REFERENCES sesion_caja(id),
+    tipo            TEXT NOT NULL CHECK(tipo IN ('venta','devolucion','cancelacion','retiro','ingreso')),
+    forma_pago      TEXT NOT NULL DEFAULT 'efectivo',
+    monto           REAL NOT NULL,
+    hora            TEXT NOT NULL DEFAULT (datetime('now')),
+    referencia      TEXT,
+    estado          TEXT NOT NULL DEFAULT 'activo' CHECK(estado IN ('activo','cancelado')),
+    usuario_id      INTEGER REFERENCES usuario(id),
+    autorizado_por  INTEGER REFERENCES usuario(id),
+    motivo          TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS corte_caja (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    sesion_id               INTEGER NOT NULL REFERENCES sesion_caja(id),
+    folio_corte             TEXT NOT NULL UNIQUE,
+    fondo_inicial           REAL NOT NULL,
+    total_ventas_efectivo   REAL NOT NULL DEFAULT 0,
+    total_ventas_tarjeta    REAL NOT NULL DEFAULT 0,
+    total_ventas_otro       REAL NOT NULL DEFAULT 0,
+    total_devoluciones      REAL NOT NULL DEFAULT 0,
+    total_retiros           REAL NOT NULL DEFAULT 0,
+    total_ingresos          REAL NOT NULL DEFAULT 0,
+    efectivo_esperado       REAL NOT NULL,
+    efectivo_contado        REAL NOT NULL,
+    diferencia              REAL NOT NULL,
+    tipo_corte              TEXT NOT NULL CHECK(tipo_corte IN ('X','Z')),
+    hora_corte              TEXT NOT NULL DEFAULT (datetime('now')),
+    usuario_id              INTEGER REFERENCES usuario(id),
+    num_transacciones       INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS auditoria_caja (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    usuario_id  INTEGER REFERENCES usuario(id),
+    accion      TEXT NOT NULL,
+    detalle     TEXT,
+    hora        TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `)
 
 // Insertar admin por defecto si no hay usuarios
@@ -124,6 +199,13 @@ if (reglasCount === 0) {
   console.log('✓ Reglas de descuento inicializadas')
 }
 
+// Caja por defecto
+const cajaCount = db.prepare('SELECT COUNT(*) as c FROM caja').get().c
+if (cajaCount === 0) {
+  db.prepare("INSERT INTO caja (codigo, nombre, activa) VALUES ('C1', 'Caja principal', 1)").run()
+  console.log('✓ Caja principal creada')
+}
+
 // Migración: agregar columna imagen si no existe (para BD existentes)
 try {
   const cols = db.prepare("PRAGMA table_info(producto)").all()
@@ -132,5 +214,19 @@ try {
     console.log('✓ Columna imagen agregada a producto')
   }
 } catch (e) { /* ya existe */ }
+
+// Migración: venta ligada a sesión de caja y estado (activa/cancelada)
+try {
+  let vcols = db.prepare('PRAGMA table_info(venta)').all()
+  if (!vcols.find(c => c.name === 'sesion_id')) {
+    db.exec('ALTER TABLE venta ADD COLUMN sesion_id INTEGER REFERENCES sesion_caja(id)')
+    console.log('✓ Columna sesion_id agregada a venta')
+  }
+  vcols = db.prepare('PRAGMA table_info(venta)').all()
+  if (!vcols.find(c => c.name === 'estado')) {
+    db.exec("ALTER TABLE venta ADD COLUMN estado TEXT DEFAULT 'activa'")
+    console.log('✓ Columna estado agregada a venta')
+  }
+} catch (e) { /* */ }
 
 module.exports = db
