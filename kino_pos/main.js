@@ -138,6 +138,46 @@ ipcMain.handle('db:toggleUsuario', (_e, id, activo) => {
   return db.prepare('UPDATE usuario SET activo=? WHERE id=?').run(activo, id)
 })
 
+// Configuración
+ipcMain.handle('db:getConfiguracion', () => {
+  return db.prepare('SELECT * FROM configuracion WHERE id = 1').get() || {
+    id: 1,
+    descuento_activo: 1,
+    descuento_monto: 500,
+    descuento_porcentaje: 10
+  }
+})
+
+ipcMain.handle('db:updateConfiguracion', (_e, descuentoActivo, descuentoMonto, descuentoPorcentaje) => {
+  return db.prepare(
+    'UPDATE configuracion SET descuento_activo=?, descuento_monto=?, descuento_porcentaje=? WHERE id=1'
+  ).run(descuentoActivo ? 1 : 0, descuentoMonto, descuentoPorcentaje)
+})
+
+ipcMain.handle('db:getDescuentosReglas', () => {
+  return db.prepare('SELECT * FROM descuento_regla ORDER BY id ASC').all()
+})
+
+ipcMain.handle('db:addDescuentoRegla', (_e, nombre, montoMinimo, porcentaje, activo) => {
+  return db.prepare(
+    'INSERT INTO descuento_regla (nombre, monto_minimo, porcentaje, activo) VALUES (?, ?, ?, ?)'
+  ).run(nombre || 'Nueva regla', montoMinimo, porcentaje, activo ? 1 : 0)
+})
+
+ipcMain.handle('db:updateDescuentoRegla', (_e, id, nombre, montoMinimo, porcentaje, activo) => {
+  return db.prepare(
+    'UPDATE descuento_regla SET nombre=?, monto_minimo=?, porcentaje=?, activo=? WHERE id=?'
+  ).run(nombre, montoMinimo, porcentaje, activo ? 1 : 0, id)
+})
+
+ipcMain.handle('db:setDescuentoReglaActivo', (_e, id, activo) => {
+  return db.prepare('UPDATE descuento_regla SET activo=? WHERE id=?').run(activo ? 1 : 0, id)
+})
+
+ipcMain.handle('db:deleteDescuentoRegla', (_e, id) => {
+  return db.prepare('DELETE FROM descuento_regla WHERE id=?').run(id)
+})
+
 // Ventas
 ipcMain.handle('db:addVenta', (_e, folio, total, metodo_pago, notas) => {
   return db.prepare(

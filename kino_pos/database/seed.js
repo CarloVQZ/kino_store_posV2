@@ -44,12 +44,12 @@ const productos = [
   { nombre: 'Gorra Trucker Verde',       tipo: 'gorra',   precio: 160, stock: 8,  stock_minimo: 5 },
   { nombre: 'Gorra Dad Hat Beige',       tipo: 'gorra',   precio: 170, stock: 0,  stock_minimo: 5 },
   { nombre: 'Gorra Snapback Gris',       tipo: 'gorra',   precio: 190, stock: 6,  stock_minimo: 5 },
-  { nombre: 'Playera Clásica Blanca',    tipo: 'playera', precio: 120, stock: 22, stock_minimo: 5 },
-  { nombre: 'Playera Premium Gris',      tipo: 'playera', precio: 250, stock: 4,  stock_minimo: 5 },
-  { nombre: 'Playera Oversized Negro',   tipo: 'playera', precio: 280, stock: 0,  stock_minimo: 5 },
-  { nombre: 'Playera Cuello V Azul',     tipo: 'playera', precio: 140, stock: 14, stock_minimo: 5 },
-  { nombre: 'Playera Polo Verde',        tipo: 'playera', precio: 220, stock: 7,  stock_minimo: 5 },
-  { nombre: 'Playera Manga Larga Negra', tipo: 'playera', precio: 260, stock: 2,  stock_minimo: 5 },
+  { nombre: 'Playera Clásica Blanca',    tipo: 'prendas', precio: 120, stock: 22, stock_minimo: 5 },
+  { nombre: 'Playera Premium Gris',      tipo: 'prendas', precio: 250, stock: 4,  stock_minimo: 5 },
+  { nombre: 'Playera Oversized Negro',   tipo: 'prendas', precio: 280, stock: 0,  stock_minimo: 5 },
+  { nombre: 'Playera Cuello V Azul',     tipo: 'prendas', precio: 140, stock: 14, stock_minimo: 5 },
+  { nombre: 'Playera Polo Verde',        tipo: 'prendas', precio: 220, stock: 7,  stock_minimo: 5 },
+  { nombre: 'Playera Manga Larga Negra', tipo: 'prendas', precio: 260, stock: 2,  stock_minimo: 5 },
 ]
 
 const insertProd = db.prepare(

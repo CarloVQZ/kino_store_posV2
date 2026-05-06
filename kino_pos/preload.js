@@ -10,6 +10,19 @@ contextBridge.exposeInMainWorld('db', {
   updateUsuario: (id, nombre, usuario, pin, rol) => ipcRenderer.invoke('db:updateUsuario', id, nombre, usuario, pin, rol),
   toggleUsuario: (id, activo) => ipcRenderer.invoke('db:toggleUsuario', id, activo),
 
+  getConfiguracion: () => ipcRenderer.invoke('db:getConfiguracion'),
+  updateConfiguracion: (descuentoActivo, descuentoMonto, descuentoPorcentaje) =>
+    ipcRenderer.invoke('db:updateConfiguracion', descuentoActivo, descuentoMonto, descuentoPorcentaje),
+
+  getDescuentosReglas: () => ipcRenderer.invoke('db:getDescuentosReglas'),
+  addDescuentoRegla: (nombre, montoMinimo, porcentaje, activo) =>
+    ipcRenderer.invoke('db:addDescuentoRegla', nombre, montoMinimo, porcentaje, activo),
+  updateDescuentoRegla: (id, nombre, montoMinimo, porcentaje, activo) =>
+    ipcRenderer.invoke('db:updateDescuentoRegla', id, nombre, montoMinimo, porcentaje, activo),
+  setDescuentoReglaActivo: (id, activo) =>
+    ipcRenderer.invoke('db:setDescuentoReglaActivo', id, activo),
+  deleteDescuentoRegla: (id) => ipcRenderer.invoke('db:deleteDescuentoRegla', id),
+
   // Productos
   getProductos: () => ipcRenderer.invoke('db:getProductos'),
 

@@ -71,6 +71,21 @@ db.exec(`
     activo      INTEGER NOT NULL DEFAULT 1,
     creado_en   TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS configuracion (
+    id          INTEGER PRIMARY KEY CHECK(id = 1),
+    descuento_activo INTEGER NOT NULL DEFAULT 1,
+    descuento_monto  REAL NOT NULL DEFAULT 500,
+    descuento_porcentaje REAL NOT NULL DEFAULT 10
+  );
+
+  CREATE TABLE IF NOT EXISTS descuento_regla (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre        TEXT NOT NULL DEFAULT '',
+    activo        INTEGER NOT NULL DEFAULT 1,
+    monto_minimo  REAL NOT NULL DEFAULT 0,
+    porcentaje    REAL NOT NULL DEFAULT 0
+  );
 `)
 
 // Insertar admin por defecto si no hay usuarios
@@ -82,6 +97,31 @@ if (countUsuarios === 0) {
     "INSERT INTO usuario (nombre, usuario, pin, rol) VALUES (?, ?, ?, ?)"
   ).run('Admin', 'admin', pinHash, 'admin')
   console.log('✓ Usuario admin creado (PIN: 1234)')
+}
+
+// Insertar configuración por defecto si no existe
+const configCount = db.prepare('SELECT COUNT(*) as count FROM configuracion').get().count
+if (configCount === 0) {
+  db.prepare(
+    "INSERT INTO configuracion (id, descuento_activo, descuento_monto, descuento_porcentaje) VALUES (1, 1, 500, 10)"
+  ).run()
+  console.log('✓ Configuración por defecto creada')
+}
+
+// Migrar a reglas de descuento múltiples (una fila por regla, cada una con toggle)
+const reglasCount = db.prepare('SELECT COUNT(*) as count FROM descuento_regla').get().count
+if (reglasCount === 0) {
+  const row = db.prepare('SELECT * FROM configuracion WHERE id = 1').get()
+  if (row) {
+    db.prepare(
+      'INSERT INTO descuento_regla (nombre, activo, monto_minimo, porcentaje) VALUES (?, ?, ?, ?)'
+    ).run('Descuento por volumen', row.descuento_activo, row.descuento_monto, row.descuento_porcentaje)
+  } else {
+    db.prepare(
+      'INSERT INTO descuento_regla (nombre, activo, monto_minimo, porcentaje) VALUES (?, 1, 500, 10)'
+    ).run('Descuento por volumen')
+  }
+  console.log('✓ Reglas de descuento inicializadas')
 }
 
 // Migración: agregar columna imagen si no existe (para BD existentes)

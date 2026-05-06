@@ -3,6 +3,11 @@ let carrito = []
 let metodoSeleccionado = 'efectivo'
 let tabActual = 'catalogo'
 
+// Configuración (reglas de descuento desde BD; varias reglas, cada una con toggle)
+let config = {
+  descuentosReglas: []
+}
+
 // Inicializar la app
 document.addEventListener('DOMContentLoaded', async () => {
   actualizarFecha()
@@ -65,37 +70,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Auth
   document.getElementById('btn-logout').addEventListener('click', showLoginScreen)
-  document.getElementById('btn-login-back').addEventListener('click', backToUserSelection)
-  document.getElementById('btn-pin-delete').addEventListener('click', deletePinDigit)
-
-  document.querySelectorAll('.pin-btn').forEach(btn => {
-    if (btn.id === 'btn-pin-delete') return // Skip
-    btn.addEventListener('click', () => addPinDigit(btn.textContent))
-  })
-
-  // Support keyboard input for PIN
-  document.addEventListener('keydown', (e) => {
-    const loginSection = document.getElementById('login-pin-section')
-    if (loginSection && !loginSection.classList.contains('hidden')) {
-      if (/[0-9]/.test(e.key)) {
-        e.preventDefault()
-        addPinDigit(e.key)
-      } else if (e.key === 'Backspace') {
-        e.preventDefault()
-        deletePinDigit()
-      } else if (e.key === 'Enter') {
-        e.preventDefault()
-        if (currentPin.length === 4) {
-          attemptLogin()
-        }
-      }
-    }
-  })
 
   // Gestión de Usuarios
   document.getElementById('btn-nuevo-usuario').addEventListener('click', mostrarModalNuevoUsuario)
   document.getElementById('btn-cancelar-usuario').addEventListener('click', () => cerrarModal('modal-editar-usuario'))
   document.getElementById('btn-submit-usuario').addEventListener('click', submitEditarUsuario)
+
+  // Configuración — descuentos
+  document.getElementById('btn-guardar-descuentos').addEventListener('click', guardarDescuentosReglas)
+  document.getElementById('btn-nuevo-descuento').addEventListener('click', agregarDescuentoRegla)
+  document.querySelectorAll('.config-subtab').forEach(btn => {
+    btn.addEventListener('click', () => cambiarConfigSubtab(btn.dataset.configSubtab, btn))
+  })
 })
 
 function actualizarFecha() {
@@ -125,13 +111,13 @@ function mostrarProductos(productos) {
 
   // Agrupar por tipo
   const gorras = productos.filter(p => p.tipo === 'gorra')
-  const playeras = productos.filter(p => p.tipo === 'playera')
+  const prendas = productos.filter(p => p.tipo === 'prendas')
 
   if (gorras.length > 0) {
     container.appendChild(crearSeccion('GORRAS', gorras))
   }
-  if (playeras.length > 0) {
-    container.appendChild(crearSeccion('PLAYERAS', playeras))
+  if (prendas.length > 0) {
+    container.appendChild(crearSeccion('PRENDAS', prendas))
   }
 }
 
@@ -284,9 +270,30 @@ function limpiarCarrito() {
   actualizarCarrito()
 }
 
+async function refrescarDescuentosEnMemoria() {
+  try {
+    config.descuentosReglas = await window.db.getDescuentosReglas()
+  } catch (err) {
+    console.error('Error cargando reglas de descuento:', err)
+    config.descuentosReglas = []
+  }
+}
+
+/** Entre todas las reglas activas que aplican (subtotal > monto_minimo), se usa la que mayor descuento genera. */
+function calcularDescuentoSubtotal(subtotal) {
+  let max = 0
+  for (const r of config.descuentosReglas || []) {
+    if (r.activo !== 1) continue
+    if (subtotal <= r.monto_minimo) continue
+    const d = subtotal * (Number(r.porcentaje) / 100)
+    if (d > max) max = d
+  }
+  return max
+}
+
 function actualizarTotales() {
   const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0)
-  const descuento = subtotal > 500 ? subtotal * 0.1 : 0
+  const descuento = calcularDescuentoSubtotal(subtotal)
   const total = subtotal - descuento
 
   document.getElementById('subtotal').textContent = `$${subtotal.toFixed(2)}`
@@ -317,7 +324,7 @@ async function cobrar() {
   try {
     const folio = 'V' + Date.now().toString().slice(-8)
     const subtotal = carrito.reduce((sum, item) => sum + (item.precio * item.cantidad), 0)
-    const descuento = subtotal > 500 ? subtotal * 0.1 : 0
+    const descuento = calcularDescuentoSubtotal(subtotal)
     const total = subtotal - descuento
 
     // Crear venta
@@ -378,6 +385,25 @@ function buscarProductos(termino) {
   })
 }
 
+// Subpestañas dentro de Configuración
+function cambiarConfigSubtab(subtabNombre, button) {
+  document.querySelectorAll('.config-subtab').forEach(btn => {
+    btn.classList.remove('active')
+    btn.setAttribute('aria-selected', 'false')
+  })
+  button.classList.add('active')
+  button.setAttribute('aria-selected', 'true')
+
+  const panelDesc = document.getElementById('config-panel-descuentos')
+  const panelUsu = document.getElementById('config-panel-usuarios')
+  if (panelDesc) panelDesc.classList.toggle('hidden', subtabNombre !== 'descuentos')
+  if (panelUsu) panelUsu.classList.toggle('hidden', subtabNombre !== 'usuarios')
+
+  if (subtabNombre === 'usuarios' && currentUser && PERMISOS[currentUser.rol]?.gestionUsuarios) {
+    cargarTabUsuarios()
+  }
+}
+
 // Funciones para cambio de tabs
 function cambiarTab(tabNombre, button) {
   tabActual = tabNombre
@@ -394,7 +420,7 @@ function cambiarTab(tabNombre, button) {
   document.getElementById('tab-compras').classList.add('hidden')
   document.getElementById('tab-historial').classList.add('hidden')
   document.getElementById('tab-metricas').classList.add('hidden')
-  document.getElementById('tab-usuarios').classList.add('hidden')
+  document.getElementById('tab-configuracion').classList.add('hidden')
 
   // Mostrar el tab seleccionado
   document.getElementById(`tab-${tabNombre}`).classList.remove('hidden')
@@ -414,8 +440,10 @@ function cambiarTab(tabNombre, button) {
       cargarHistorial()
     } else if (tabNombre === 'metricas') {
       cargarMetricas()
-    } else if (tabNombre === 'usuarios') {
-      cargarTabUsuarios()
+    } else if (tabNombre === 'configuracion') {
+      cargarConfiguracion()
+      const btnDescuentos = document.querySelector('[data-config-subtab="descuentos"]')
+      if (btnDescuentos) cambiarConfigSubtab('descuentos', btnDescuentos)
     }
   }
 }
@@ -479,7 +507,7 @@ function mostrarInventario(productos) {
     row.innerHTML = `
       <div>${thumbHTML}</div>
       <div class="font-body-m-bold truncate">${prod.nombre}</div>
-      <div class="text-body-m">${prod.tipo === 'gorra' ? '🧢 Gorra' : '👕 Playera'}</div>
+      <div class="text-body-m">${prod.tipo === 'gorra' ? '🧢 Gorra' : '👕 Prendas'}</div>
       <div class="text-body-m">$${prod.precio.toFixed(2)}</div>
       <div class="text-body-m ${stockClass} font-bold">${prod.stock}</div>
       <div class="text-body-m text-outline">${prod.stock_minimo}</div>
@@ -1543,13 +1571,11 @@ function renderEstadoInventario(m) {
 // ═══════════════════════════════════════════════════════════════
 
 let currentUser = null
-let loginSelectedUser = null
-let currentPin = ''
 
 // ── Mapa de permisos por rol ──
 const PERMISOS = {
   admin: {
-    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'usuarios'],
+    tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'configuracion'],
     editarProducto: true,
     agregarProducto: true,
     cambiarPrecios: true,
@@ -1578,58 +1604,43 @@ const PERMISOS = {
 }
 
 async function initAuth() {
-  await loadLoginUsers()
+  const loginForm = document.getElementById('login-form')
+  if (loginForm) {
+    loginForm.addEventListener('submit', handleLoginSubmit)
+  }
+
+  try {
+    await refrescarDescuentosEnMemoria()
+  } catch (err) {
+    console.error('Error cargando reglas de descuento:', err)
+  }
+
   showLoginScreen()
 }
 
-async function loadLoginUsers() {
-  try {
-    const users = await window.db.getUsuariosActivos()
-    const grid = document.getElementById('login-users-grid')
-    grid.innerHTML = ''
-    
-    users.forEach(u => {
-      const btn = document.createElement('button')
-      btn.className = 'flex flex-col items-center gap-2 p-4 rounded-xl border border-outline-variant hover:border-[#1D9E75] hover:bg-[#E8F5F1]/30 transition-all cursor-pointer'
-      
-      const roleColor = u.rol === 'admin' ? 'text-red-500' : u.rol === 'gerente' ? 'text-blue-500' : 'text-[#1D9E75]'
-      const roleIcon = u.rol === 'admin' ? 'admin_panel_settings' : u.rol === 'gerente' ? 'manage_accounts' : 'person'
-      
-      btn.innerHTML = `
-        <div class="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center border border-gray-100">
-          <span class="material-symbols-outlined ${roleColor} text-2xl">${roleIcon}</span>
-        </div>
-        <div class="flex flex-col items-center">
-          <span class="font-bold text-sm leading-tight">${u.nombre}</span>
-          <span class="text-[10px] text-outline uppercase tracking-wider">${u.rol}</span>
-        </div>
-      `
-      btn.addEventListener('click', () => selectLoginUser(u))
-      grid.appendChild(btn)
-    })
-  } catch (err) {
-    console.error('Error loading users:', err)
+async function handleLoginSubmit(e) {
+  e.preventDefault()
+  const usuario = document.getElementById('login-usuario').value.trim()
+  const pin = document.getElementById('login-pin').value.trim()
+  const errorMsg = document.getElementById('login-error-msg')
+
+  if (!usuario || !pin) {
+    errorMsg.textContent = 'Completa todos los campos'
+    return
   }
-}
 
-function selectLoginUser(user) {
-  loginSelectedUser = user
-  currentPin = ''
-  updatePinIndicators()
-  document.getElementById('login-error-msg').textContent = ''
-  
-  document.getElementById('login-selected-username').textContent = user.nombre
-  document.getElementById('login-users-grid').classList.add('hidden')
-  document.getElementById('login-pin-section').classList.remove('hidden')
-  document.getElementById('login-logo-section').classList.add('hidden')
-}
+  if (pin.length !== 4 || isNaN(pin)) {
+    errorMsg.textContent = 'El PIN debe ser de 4 dígitos'
+    return
+  }
 
-function backToUserSelection() {
-  loginSelectedUser = null
-  currentPin = ''
-  document.getElementById('login-pin-section').classList.add('hidden')
-  document.getElementById('login-users-grid').classList.remove('hidden')
-  document.getElementById('login-logo-section').classList.remove('hidden')
+  try {
+    const user = await window.db.login(usuario, pin)
+    handleLoginSuccess(user)
+  } catch (err) {
+    errorMsg.textContent = 'Usuario o PIN incorrecto'
+    document.getElementById('login-pin').value = ''
+  }
 }
 
 function showLoginScreen() {
@@ -1638,65 +1649,21 @@ function showLoginScreen() {
   document.getElementById('login-screen').classList.remove('hidden')
   document.getElementById('user-profile-badge').classList.add('hidden')
   document.getElementById('btn-logout').classList.add('hidden')
-  loadLoginUsers()
-  backToUserSelection()
-}
 
-function updatePinIndicators() {
-  const indicators = document.getElementById('login-pin-indicators').children
-  for (let i = 0; i < 4; i++) {
-    if (i < currentPin.length) {
-      indicators[i].classList.replace('border-outline-variant', 'border-[#1D9E75]')
-      indicators[i].classList.add('bg-[#1D9E75]')
-    } else {
-      indicators[i].classList.replace('border-[#1D9E75]', 'border-outline-variant')
-      indicators[i].classList.remove('bg-[#1D9E75]')
-    }
-  }
-}
-
-async function addPinDigit(digit) {
-  if (currentPin.length < 4) {
-    currentPin += digit
-    updatePinIndicators()
-    document.getElementById('login-error-msg').textContent = ''
-    
-    if (currentPin.length === 4) {
-      await attemptLogin()
-    }
-  }
-}
-
-function deletePinDigit() {
-  if (currentPin.length > 0) {
-    currentPin = currentPin.slice(0, -1)
-    updatePinIndicators()
-    document.getElementById('login-error-msg').textContent = ''
-  }
-}
-
-async function attemptLogin() {
-  try {
-    const user = await window.db.login(loginSelectedUser.usuario, currentPin)
-    handleLoginSuccess(user)
-  } catch (err) {
-    document.getElementById('login-error-msg').textContent = 'PIN incorrecto'
-    currentPin = ''
-    updatePinIndicators()
-  }
+  document.getElementById('login-usuario').value = ''
+  document.getElementById('login-pin').value = ''
+  document.getElementById('login-error-msg').textContent = ''
 }
 
 function handleLoginSuccess(user) {
   currentUser = user
   document.getElementById('login-screen').classList.add('hidden')
-  
-  // Update header badge
+
   document.getElementById('user-profile-name').textContent = user.nombre
   document.getElementById('user-profile-role').textContent = user.rol
   document.getElementById('user-profile-badge').classList.remove('hidden')
   document.getElementById('btn-logout').classList.remove('hidden')
-  
-  // Apply role restrictions
+
   applyRoleRestrictions(user.rol)
 }
 
@@ -1742,17 +1709,17 @@ function applyRoleRestrictions(rol) {
   // 5. Botones de editar producto en inventario (se aplican al renderizar)
   // La función mostrarInventario ya revisa `PERMISOS[currentUser.rol].editarProducto`
 
-  // 6. Cargar tab de usuarios si es admin
-  if (permisos.tabs.includes('usuarios')) {
-    cargarTabUsuarios()
+  // 6. Cargar tab de configuración si es admin (usuarios se cargan al abrir esa subpestaña)
+  if (permisos.tabs.includes('configuracion')) {
+    cargarConfiguracion()
   }
 }
 
 // Resetear todos los permisos al hacer logout
 function resetRoleRestrictions() {
   document.querySelectorAll('.nav-tab').forEach(tab => {
-    // Ocultar tab usuarios por defecto
-    if (tab.dataset.tab === 'usuarios') {
+    // Ocultar tabs solo admin hasta que aplique el rol
+    if (tab.dataset.tab === 'usuarios' || tab.dataset.tab === 'configuracion') {
       tab.style.display = 'none'
     } else {
       tab.style.display = 'flex'
@@ -1766,9 +1733,8 @@ function resetRoleRestrictions() {
 
 // ── Fase 3: Gestión de Usuarios (solo admin) ──
 async function cargarTabUsuarios() {
-  // Si el tab de usuarios ya existe en el DOM, solo actualizamos el contenido
-  let tabUsuarios = document.getElementById('tab-usuarios')
-  if (!tabUsuarios) return // El tab HTML aún no existe
+  const container = document.getElementById('usuarios-container')
+  if (!container) return
 
   try {
     const usuarios = await window.db.getUsuarios()
@@ -1904,6 +1870,152 @@ async function submitEditarUsuario() {
     }
     cerrarModal('modal-editar-usuario')
     await cargarTabUsuarios()
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CONFIGURACIÓN
+// ═══════════════════════════════════════════════════════════════
+
+function pintarPanelDescuentos() {
+  const list = document.getElementById('descuentos-reglas-list')
+  if (!list) return
+
+  list.innerHTML = ''
+  const reglas = config.descuentosReglas || []
+
+  if (reglas.length === 0) {
+    const vacio = document.createElement('p')
+    vacio.className = 'text-sm text-outline py-2'
+    vacio.textContent = 'No hay reglas. Pulsa «Nueva regla» para crear una.'
+    list.appendChild(vacio)
+    return
+  }
+
+  for (const r of reglas) {
+    const card = document.createElement('div')
+    card.className =
+      'regla-descuento-card bg-white border border-outline-variant rounded-lg p-4 space-y-3 shadow-sm'
+    card.dataset.reglaId = String(r.id)
+
+    card.innerHTML = `
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <label class="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" class="regla-toggle w-5 h-5 accent-[#1D9E75] rounded shrink-0" ${r.activo === 1 ? 'checked' : ''}>
+          <div>
+            <span class="font-body-m-bold text-body-m text-sm">Regla activa</span>
+            <p class="text-xs text-outline">Si está desactivada, no se aplica en el POS</p>
+          </div>
+        </label>
+        <button type="button" class="regla-eliminar flex items-center gap-1 text-error text-sm font-body-m-bold hover:opacity-80">
+          <span class="material-symbols-outlined text-base">delete</span>
+          Eliminar
+        </button>
+      </div>
+      <div>
+        <label class="block text-xs font-body-m-bold text-outline mb-1">Nombre</label>
+        <input type="text" class="regla-nombre w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-[#1D9E75]">
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-body-m-bold text-outline mb-1">Monto mínimo ($)</label>
+          <input type="number" min="0" step="1" class="regla-monto w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-[#1D9E75]">
+        </div>
+        <div>
+          <label class="block text-xs font-body-m-bold text-outline mb-1">Porcentaje (%)</label>
+          <input type="number" min="0" max="100" step="1" class="regla-pct w-full px-3 py-2 border border-outline-variant rounded-lg text-sm focus:outline-none focus:border-[#1D9E75]">
+        </div>
+      </div>
+    `
+
+    card.querySelector('.regla-nombre').value = r.nombre || ''
+    card.querySelector('.regla-monto').value = r.monto_minimo
+    card.querySelector('.regla-pct').value = r.porcentaje
+
+    card.querySelector('.regla-toggle').addEventListener('change', async ev => {
+      const id = parseInt(card.dataset.reglaId, 10)
+      try {
+        await window.db.setDescuentoReglaActivo(id, ev.target.checked)
+        await refrescarDescuentosEnMemoria()
+        actualizarTotales()
+      } catch (err) {
+        await mostrarAlerta('Error: ' + err.message)
+        ev.target.checked = !ev.target.checked
+      }
+    })
+
+    card.querySelector('.regla-eliminar').addEventListener('click', async () => {
+      const ok = await mostrarConfirm('¿Eliminar esta regla de descuento?')
+      if (!ok) return
+      try {
+        await window.db.deleteDescuentoRegla(parseInt(card.dataset.reglaId, 10))
+        await refrescarDescuentosEnMemoria()
+        pintarPanelDescuentos()
+        actualizarTotales()
+      } catch (err) {
+        await mostrarAlerta('Error: ' + err.message)
+      }
+    })
+
+    list.appendChild(card)
+  }
+}
+
+async function cargarConfiguracion() {
+  try {
+    await refrescarDescuentosEnMemoria()
+    pintarPanelDescuentos()
+  } catch (err) {
+    console.error('Error cargando configuración:', err)
+  }
+}
+
+async function guardarDescuentosReglas() {
+  const list = document.getElementById('descuentos-reglas-list')
+  if (!list) return
+
+  const cards = list.querySelectorAll('.regla-descuento-card')
+  if (cards.length === 0) {
+    await mostrarAlerta('No hay reglas para guardar')
+    return
+  }
+
+  try {
+    for (const card of cards) {
+      const id = parseInt(card.dataset.reglaId, 10)
+      const nombre = card.querySelector('.regla-nombre').value.trim() || 'Sin nombre'
+      const monto = parseFloat(card.querySelector('.regla-monto').value)
+      const pct = parseFloat(card.querySelector('.regla-pct').value)
+      const activo = card.querySelector('.regla-toggle').checked
+
+      if (isNaN(monto) || monto < 0) {
+        await mostrarAlerta('Monto mínimo inválido en una de las reglas')
+        return
+      }
+      if (isNaN(pct) || pct < 0 || pct > 100) {
+        await mostrarAlerta('El porcentaje debe estar entre 0 y 100 en todas las reglas')
+        return
+      }
+
+      await window.db.updateDescuentoRegla(id, nombre, monto, pct, activo)
+    }
+
+    await refrescarDescuentosEnMemoria()
+    pintarPanelDescuentos()
+    actualizarTotales()
+    await mostrarAlerta('✓ Descuentos guardados correctamente')
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
+}
+
+async function agregarDescuentoRegla() {
+  try {
+    await window.db.addDescuentoRegla('Nueva regla', 500, 10, false)
+    await refrescarDescuentosEnMemoria()
+    pintarPanelDescuentos()
   } catch (err) {
     await mostrarAlerta('Error: ' + err.message)
   }

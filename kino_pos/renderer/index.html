@@ -56,7 +56,7 @@
             <div class="flex gap-2">
               <button class="px-4 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold text-body-m border border-[#1D9E75]" data-filter="todos">Todos</button>
               <button class="px-4 py-2 rounded-lg bg-white text-on-surface font-body-m text-body-m border border-outline-variant hover:bg-gray-50 transition-all" data-filter="gorra">Gorras</button>
-              <button class="px-4 py-2 rounded-lg bg-white text-on-surface font-body-m text-body-m border border-outline-variant hover:bg-gray-50 transition-all" data-filter="playera">Playeras</button>
+              <button class="px-4 py-2 rounded-lg bg-white text-on-surface font-body-m text-body-m border border-outline-variant hover:bg-gray-50 transition-all" data-filter="prendas">Prendas</button>
             </div>
           </div>
         </div>
@@ -177,17 +177,75 @@
         </div>
       </div>
 
-      <!-- TAB: USUARIOS -->
-      <div id="tab-usuarios" class="flex-1 flex flex-col overflow-hidden hidden">
-        <div class="p-5 flex items-center justify-between">
-          <h2 class="font-h1 text-h2">Gestión de Usuarios</h2>
-          <button id="btn-nuevo-usuario" class="flex items-center gap-2 px-4 py-2 bg-[#1D9E75] text-white rounded-lg hover:bg-[#167e5d] transition-all font-body-m-bold">
-            <span class="material-symbols-outlined text-sm">person_add</span>
-            Nuevo Usuario
-          </button>
+      <!-- TAB: CONFIGURACIÓN -->
+      <div id="tab-configuracion" class="flex-1 flex flex-col overflow-hidden hidden min-h-0">
+        <div class="flex-none px-5 pt-5 pb-0 border-b border-gray-100 bg-surface-container-low">
+          <h2 class="font-h1 text-h2 mb-4">Configuración</h2>
+          <div class="flex gap-1 -mb-px" role="tablist">
+            <button type="button" role="tab" class="config-subtab active" data-config-subtab="descuentos" aria-selected="true">
+              <span class="material-symbols-outlined text-[18px]">percent</span>
+              Descuentos
+            </button>
+            <button type="button" role="tab" class="config-subtab" data-config-subtab="usuarios" aria-selected="false">
+              <span class="material-symbols-outlined text-[18px]">group</span>
+              Usuarios
+            </button>
+          </div>
         </div>
-        <div id="usuarios-container" class="flex-1 overflow-y-auto px-5">
-          <!-- Lista de usuarios se cargará aquí -->
+
+        <div class="flex-1 min-h-0 flex flex-col overflow-hidden bg-surface-container-low">
+          <!-- Subpestaña: descuentos -->
+          <div id="config-panel-descuentos" class="flex-1 overflow-y-auto p-5" role="tabpanel">
+            <div class="mb-8">
+              <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-[#1D9E75]">percent</span>
+                <h3 class="font-h2 text-h3">Descuentos automáticos</h3>
+              </div>
+              <p class="text-sm text-outline mb-4 max-w-2xl">
+                Cada regla aplica un porcentaje al subtotal cuando la venta supera el monto mínimo.
+                Si varias reglas activas aplican a la vez, se usa la que deja mayor descuento.
+                El interruptor guarda al instante; nombre, montos y porcentajes se guardan con el botón inferior.
+              </p>
+              <div id="descuentos-reglas-list" class="space-y-3 max-w-2xl mb-4"></div>
+              <div class="flex flex-col sm:flex-row gap-3 max-w-2xl">
+                <button type="button" id="btn-nuevo-descuento" class="flex-1 py-2.5 px-4 border-2 border-[#1D9E75] text-[#1D9E75] rounded-lg hover:bg-[#E8F5F1] font-body-m-bold transition-all flex items-center justify-center gap-2">
+                  <span class="material-symbols-outlined text-sm">add</span>
+                  Nueva regla
+                </button>
+                <button type="button" id="btn-guardar-descuentos" class="flex-1 py-2.5 px-4 bg-[#1D9E75] text-white rounded-lg hover:bg-[#167e5d] font-body-m-bold transition-all flex items-center justify-center gap-2">
+                  <span class="material-symbols-outlined text-sm">save</span>
+                  Guardar cambios
+                </button>
+              </div>
+            </div>
+
+            <div class="mb-8 max-w-2xl">
+              <div class="flex items-center gap-2 mb-4">
+                <span class="material-symbols-outlined text-gray-400">extension</span>
+                <h3 class="font-h2 text-h3 text-gray-400">Más opciones</h3>
+              </div>
+              <div class="bg-gray-50 rounded-lg border border-gray-200 border-dashed p-5">
+                <p class="text-body-m text-gray-400 text-center">Próximas opciones de configuración aparecerán aquí</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subpestaña: usuarios -->
+          <div id="config-panel-usuarios" class="hidden flex-1 flex flex-col min-h-0 p-5" role="tabpanel">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 flex-none">
+              <div>
+                <h3 class="font-h2 text-h3">Gestión de usuarios</h3>
+                <p class="text-sm text-outline mt-1">Altas, roles y estado de cuentas del sistema</p>
+              </div>
+              <button id="btn-nuevo-usuario" class="flex items-center justify-center gap-2 px-4 py-2 bg-[#1D9E75] text-white rounded-lg hover:bg-[#167e5d] transition-all font-body-m-bold shrink-0">
+                <span class="material-symbols-outlined text-sm">person_add</span>
+                Nuevo usuario
+              </button>
+            </div>
+            <div id="usuarios-container" class="flex-1 overflow-y-auto min-h-0 -mx-1 px-1">
+              <!-- Lista de usuarios se cargará aquí -->
+            </div>
+          </div>
         </div>
       </div>
 
@@ -292,8 +350,8 @@
               <span>🧢 Gorra</span>
             </label>
             <label class="flex items-center gap-2 p-3 border border-outline-variant rounded-lg cursor-pointer has-[:checked]:border-[#1D9E75] has-[:checked]:bg-[#E8F5F1]">
-              <input type="radio" name="tipo-producto" value="playera" class="accent-[#1D9E75]">
-              <span>👕 Playera</span>
+              <input type="radio" name="tipo-producto" value="prendas" class="accent-[#1D9E75]">
+              <span>👕 Prendas</span>
             </label>
           </div>
         </div>
@@ -358,8 +416,8 @@
               <span>🧢 Gorra</span>
             </label>
             <label class="flex items-center gap-2 p-3 border border-outline-variant rounded-lg cursor-pointer has-[:checked]:border-[#1D9E75] has-[:checked]:bg-[#E8F5F1]">
-              <input type="radio" name="edit-tipo-producto" value="playera" class="accent-[#1D9E75]">
-              <span>👕 Playera</span>
+              <input type="radio" name="edit-tipo-producto" value="prendas" class="accent-[#1D9E75]">
+              <span>👕 Prendas</span>
             </label>
           </div>
         </div>
@@ -502,60 +560,53 @@
   <div id="login-screen" class="fixed inset-0 bg-surface-container-low z-[100] flex flex-col items-center justify-center">
     <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 flex flex-col items-center">
       <!-- Logo section -->
-      <div id="login-logo-section" class="flex flex-col items-center">
+      <div class="flex flex-col items-center mb-8">
         <div class="w-16 h-16 bg-[#1D9E75] rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg shadow-[#1D9E75]/30">
           <span class="material-symbols-outlined text-3xl">shopping_bag</span>
         </div>
         <h2 class="font-h1 text-h1 tracking-tight mb-2">Kino POS</h2>
-        <p class="text-outline text-body-m mb-8">Selecciona tu usuario para ingresar</p>
+        <p class="text-outline text-body-m">Inicia sesión para continuar</p>
       </div>
 
-      <!-- Lista de usuarios -->
-      <div id="login-users-grid" class="grid grid-cols-3 gap-4 w-full mb-8">
-        <!-- Cargado dinámicamente -->
-      </div>
-
-      <!-- Teclado Numérico (Oculto inicialmente) -->
-      <div id="login-pin-section" class="w-full flex flex-col items-center hidden">
-        <div class="flex items-center justify-between w-full mb-4">
-          <button id="btn-login-back" class="text-outline hover:text-on-surface">
-            <span class="material-symbols-outlined">arrow_back</span>
-          </button>
-          <span id="login-selected-username" class="font-bold text-lg">Usuario</span>
-          <div class="w-6"></div> <!-- Spacer -->
+      <!-- Login Form -->
+      <form id="login-form" class="w-full space-y-4">
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-2">Usuario</label>
+          <input
+            id="login-usuario"
+            type="text"
+            required
+            autocomplete="username"
+            class="w-full px-4 py-3 border border-outline-variant rounded-lg focus:outline-none focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/20 transition-all font-body-m"
+            placeholder="Nombre de usuario"
+          >
         </div>
 
-        <p class="text-sm text-outline mb-4">Ingresa tu PIN:</p>
-        
-        <!-- Indicadores de PIN -->
-        <div class="flex gap-3 mb-6" id="login-pin-indicators">
-          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
-          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
-          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
-          <div class="w-4 h-4 rounded-full border-2 border-outline-variant"></div>
+        <div>
+          <label class="block text-body-m font-body-m-bold mb-2">PIN (4 dígitos)</label>
+          <input
+            id="login-pin"
+            type="password"
+            required
+            maxlength="4"
+            inputmode="numeric"
+            pattern="[0-9]{4}"
+            autocomplete="current-password"
+            class="w-full px-4 py-3 border border-outline-variant rounded-lg focus:outline-none focus:border-[#1D9E75] focus:ring-2 focus:ring-[#1D9E75]/20 transition-all font-body-m"
+            placeholder="****"
+          >
         </div>
 
-        <!-- Mensaje de error -->
-        <p id="login-error-msg" class="text-error text-sm font-bold h-5 mb-4"></p>
+        <p id="login-error-msg" class="text-error text-sm font-bold h-5"></p>
 
-        <!-- Teclado -->
-        <div class="grid grid-cols-3 gap-3 w-64">
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">1</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">2</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">3</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">4</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">5</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">6</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">7</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">8</button>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">9</button>
-          <div></div>
-          <button class="pin-btn w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-2xl font-bold transition-colors">0</button>
-          <button id="btn-pin-delete" class="w-16 h-16 rounded-full bg-gray-50 hover:bg-gray-100 text-outline transition-colors flex items-center justify-center">
-            <span class="material-symbols-outlined">backspace</span>
-          </button>
-        </div>
-      </div>
+        <button
+          type="submit"
+          class="w-full h-12 bg-[#1D9E75] hover:bg-[#167e5d] text-white font-h1 text-h2 rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2 mt-6"
+        >
+          <span class="material-symbols-outlined">login</span>
+          Ingresar
+        </button>
+      </form>
     </div>
   </div>
 
@@ -581,9 +632,9 @@
       <span class="material-symbols-outlined">bar_chart</span>
       <span class="text-xs font-medium">Métricas</span>
     </button>
-    <button class="nav-tab hidden" data-tab="usuarios">
-      <span class="material-symbols-outlined">group</span>
-      <span class="text-xs font-medium">Usuarios</span>
+    <button class="nav-tab hidden" data-tab="configuracion">
+      <span class="material-symbols-outlined">settings</span>
+      <span class="text-xs font-medium">Configuración</span>
     </button>
   </nav>
 
