@@ -10,11 +10,12 @@
     "watch:css": "tailwindcss -i ./renderer/css/input.css -o ./renderer/css/output.css --watch",
     "start": "npm run build:css && electron .",
     "dev": "npm run watch:css & electron .",
-    "pack": "npm run build:css && electron-builder --dir",
-    "dist:linux": "npm run build:css && electron-builder --linux deb AppImage"
+    "pack": "npm run build:css && ELECTRON_BUILDER_DISABLE_ELECTRON_REBUILD=true electron-builder --dir",
+    "dist:linux": "npm run build:css && ./node_modules/.bin/electron-rebuild -f -w better-sqlite3 && electron-builder --linux deb AppImage"
   },
   "keywords": [],
   "author": "Kino Store",
+  "homepage": "https://kino.store",
   "license": "ISC",
   "dependencies": {
     "better-sqlite3": "^12.9.0"
@@ -40,7 +41,11 @@
       "renderer/**/*",
       "database/**/*.js",
       "database/**/*.json",
-      "package.json"
+      "package.json",
+      "node_modules/better-sqlite3/build/Release/*"
+    ],
+    "asarUnpack": [
+      "node_modules/better-sqlite3/build/**/*"
     ],
     "linux": {
       "target": [
@@ -49,6 +54,11 @@
       ],
       "category": "Office",
       "maintainer": "Kino Store"
-    }
+    },
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "buildDependenciesFromSource": false,
+    "electronDist": "./node_modules/electron/dist",
+    "nativeRebuilder": "legacy"
   }
 }
