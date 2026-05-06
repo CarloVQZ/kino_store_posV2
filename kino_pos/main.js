@@ -2,13 +2,18 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const crypto = require('crypto')
+
+if (!process.env.KINO_DATA_DIR) {
+  process.env.KINO_DATA_DIR = app.getPath('userData')
+}
+
 const db = require('./database/db')
 const cajaService = require('./database/cajaService')
 
 let mainWindow
 
 // Directorio para imágenes de productos
-const imagesDir = path.join(__dirname, 'database', 'images')
+const imagesDir = path.join(process.env.KINO_DATA_DIR, 'images')
 if (!fs.existsSync(imagesDir)) {
   fs.mkdirSync(imagesDir, { recursive: true })
 }
