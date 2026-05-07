@@ -646,7 +646,7 @@ function mostrarInventario() {
 
   const header = document.createElement('div')
   header.className = 'grid gap-2 p-4 bg-surface-container-low rounded-lg font-body-m-bold sticky top-0'
-  header.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 100px'
+  header.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 220px'
   header.innerHTML = `
     <div></div>
     <div>Producto</div>
@@ -661,7 +661,7 @@ function mostrarInventario() {
   productosPagina.forEach(prod => {
     const row = document.createElement('div')
     row.className = 'grid gap-2 p-3 bg-white border border-outline-variant rounded-lg items-center'
-    row.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 100px'
+    row.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 220px'
 
     const stockClass = prod.stock > prod.stock_minimo ? 'text-green-600' : prod.stock > 0 ? 'text-yellow-600' : 'text-red-500'
 
@@ -674,6 +674,7 @@ function mostrarInventario() {
     }
 
     const puedeEditar = currentUser && PERMISOS[currentUser.rol]?.editarProducto
+    const puedeEliminar = currentUser && PERMISOS[currentUser.rol]?.eliminarProducto
 
     row.innerHTML = `
       <div>${thumbHTML}</div>
@@ -682,14 +683,18 @@ function mostrarInventario() {
       <div class="text-body-m">$${prod.precio.toFixed(2)}</div>
       <div class="text-body-m ${stockClass} font-bold">${prod.stock}</div>
       <div class="text-body-m text-outline">${prod.stock_minimo}</div>
-      <div>
+      <div class="flex items-center gap-1">
         ${puedeEditar ? `<button class="btn-editar-prod px-2 py-1 bg-[#1D9E75] text-white rounded text-xs font-bold flex items-center gap-1">
           <span class="material-symbols-outlined" style="font-size:14px">edit</span> Editar
+        </button>` : ''}
+        ${puedeEliminar ? `<button class="btn-eliminar-prod px-2 py-1 bg-red-500 text-white rounded text-xs font-bold flex items-center gap-1">
+          <span class="material-symbols-outlined" style="font-size:14px">delete</span> Eliminar
         </button>` : ''}
       </div>
     `
 
     row.querySelector('.btn-editar-prod')?.addEventListener('click', () => editarProducto(prod))
+    row.querySelector('.btn-eliminar-prod')?.addEventListener('click', () => eliminarProducto(prod))
 
     tabla.appendChild(row)
   })
@@ -1089,6 +1094,20 @@ async function submitEditarProducto() {
     await window.db.updateProducto(id, nombre, tipo, precio, stock, stock_minimo, imagen)
     cerrarModal('modal-editar-producto')
     await mostrarAlerta('✓ Producto actualizado')
+    await cargarInventario()
+    await cargarProductos()
+  } catch (err) {
+    await mostrarAlerta('Error: ' + err.message)
+  }
+}
+
+async function eliminarProducto(prod) {
+  const ok = await mostrarConfirm(`¿Eliminar "${prod.nombre}"? Esta acción no se puede deshacer.`)
+  if (!ok) return
+
+  try {
+    await window.db.deleteProducto(prod.id)
+    await mostrarAlerta('✓ Producto eliminado')
     await cargarInventario()
     await cargarProductos()
   } catch (err) {
@@ -2204,6 +2223,7 @@ const PERMISOS = {
   admin: {
     tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'corte-caja', 'configuracion'],
     editarProducto: true,
+    eliminarProducto: true,
     agregarProducto: true,
     cambiarPrecios: true,
     nuevaCompra: true,
@@ -2214,6 +2234,7 @@ const PERMISOS = {
   gerente: {
     tabs: ['catalogo', 'inventario', 'compras', 'historial', 'metricas', 'corte-caja'],
     editarProducto: true,
+    eliminarProducto: true,
     agregarProducto: true,
     cambiarPrecios: false,
     nuevaCompra: true,
@@ -2224,6 +2245,7 @@ const PERMISOS = {
   cajero: {
     tabs: ['catalogo', 'historial', 'corte-caja'],
     editarProducto: false,
+    eliminarProducto: false,
     agregarProducto: false,
     cambiarPrecios: false,
     nuevaCompra: false,

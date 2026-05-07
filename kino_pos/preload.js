@@ -34,6 +34,8 @@ contextBridge.exposeInMainWorld('db', {
 
   updateProducto: (id, nombre, tipo, precio, stock, stock_minimo, imagen) =>
     ipcRenderer.invoke('db:updateProducto', id, nombre, tipo, precio, stock, stock_minimo, imagen),
+  deleteProducto: (id) =>
+    ipcRenderer.invoke('db:deleteProducto', id),
 
   // Imágenes
   selectImage: () => ipcRenderer.invoke('dialog:selectImage'),

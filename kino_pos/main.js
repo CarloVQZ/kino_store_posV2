@@ -70,6 +70,27 @@ ipcMain.handle('db:updateProducto', (_e, id, nombre, tipo, precio, stock, stock_
   ).run(nombre, tipo, precio, stock, stock_minimo, imagen || null, id)
 })
 
+ipcMain.handle('db:deleteProducto', (_e, id) => {
+  const productoId = Number(id)
+  if (!Number.isInteger(productoId) || productoId <= 0) {
+    throw new Error('ID de producto inválido')
+  }
+
+  const ventasCount = db.prepare('SELECT COUNT(*) as c FROM detalle_venta WHERE producto_id = ?').get(productoId).c
+  const comprasCount = db.prepare('SELECT COUNT(*) as c FROM detalle_compra WHERE producto_id = ?').get(productoId).c
+
+  if (ventasCount > 0 || comprasCount > 0) {
+    throw new Error('No se puede eliminar: el producto tiene historial de ventas o compras')
+  }
+
+  db.prepare('DELETE FROM movimiento_inventario WHERE producto_id = ?').run(productoId)
+  const result = db.prepare('DELETE FROM producto WHERE id = ?').run(productoId)
+  if (result.changes === 0) {
+    throw new Error('Producto no encontrado')
+  }
+  return { success: true }
+})
+
 // Imágenes
 ipcMain.handle('dialog:selectImage', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
