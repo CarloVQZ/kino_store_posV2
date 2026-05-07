@@ -184,7 +184,8 @@ if (countUsuarios === 0) {
 
 // Insertar configuración por defecto si no existe
 const configCount = db.prepare('SELECT COUNT(*) as count FROM configuracion').get().count
-if (configCount === 0) {
+const configCreadaEnEsteArranque = configCount === 0
+if (configCreadaEnEsteArranque) {
   db.prepare(
     "INSERT INTO configuracion (id, descuento_activo, descuento_monto, descuento_porcentaje) VALUES (1, 1, 500, 10)"
   ).run()
@@ -193,7 +194,7 @@ if (configCount === 0) {
 
 // Migrar a reglas de descuento múltiples (una fila por regla, cada una con toggle)
 const reglasCount = db.prepare('SELECT COUNT(*) as count FROM descuento_regla').get().count
-if (reglasCount === 0) {
+if (reglasCount === 0 && configCreadaEnEsteArranque) {
   const row = db.prepare('SELECT * FROM configuracion WHERE id = 1').get()
   if (row) {
     db.prepare(

@@ -49,9 +49,12 @@
         <!-- Toolbar -->
         <div class="p-5 flex flex-col gap-4">
           <div class="flex items-center justify-between gap-4">
-            <div class="relative flex-1 max-w-md">
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
-              <input id="search" class="w-full pl-10 pr-4 py-2 bg-white border border-outline-variant rounded-lg font-body-m text-body-m focus:outline-none focus:border-primary-container transition-all" placeholder="Buscar por nombre o ID" type="text">
+            <div class="flex items-center gap-3 flex-1">
+              <div class="relative flex-1 max-w-md">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+                <input id="search" class="w-full pl-10 pr-4 py-2 bg-white border border-outline-variant rounded-lg font-body-m text-body-m focus:outline-none focus:border-primary-container transition-all" placeholder="Buscar por nombre o ID" type="text">
+              </div>
+              <div id="catalogo-paginacion" class="flex items-center gap-2"></div>
             </div>
             <div class="flex gap-2">
               <button class="px-4 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold text-body-m border border-[#1D9E75]" data-filter="todos">Todos</button>
@@ -71,10 +74,19 @@
       <div id="tab-inventario" class="flex-1 flex flex-col overflow-hidden hidden">
         <div class="p-5 flex flex-col gap-4">
           <h2 class="font-h1 text-h2">Gestión de Inventario</h2>
-          <div class="flex gap-2">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 flex-1">
+              <div class="relative flex-1 max-w-md">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+                <input id="search-inventario" class="w-full pl-10 pr-4 py-2 bg-white border border-outline-variant rounded-lg font-body-m text-body-m focus:outline-none focus:border-primary-container transition-all" placeholder="Buscar por nombre o ID" type="text">
+              </div>
+              <div id="inventario-paginacion" class="flex items-center gap-2"></div>
+            </div>
+            <div class="flex gap-2 shrink-0">
             <button id="btn-agregar-producto" class="px-4 py-2 rounded-lg bg-[#1D9E75] text-white font-body-m-bold text-body-m">
               <span class="material-symbols-outlined inline mr-2">add</span>Agregar Producto
             </button>
+            </div>
           </div>
         </div>
         <div id="inventario-container" class="flex-1 overflow-y-auto px-5">

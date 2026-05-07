@@ -3,6 +3,22 @@ let carrito = []
 let metodoSeleccionado = 'efectivo'
 let tabActual = 'catalogo'
 const CAJA_DEFAULT_ID = 1
+let catalogoProductos = []
+let catalogoFiltro = 'todos'
+let catalogoBusqueda = ''
+let catalogoPaginaActual = 1
+const CATALOGO_PRODUCTOS_POR_PAGINA = 8
+let inventarioProductos = []
+let inventarioBusqueda = ''
+let inventarioPaginaActual = 1
+const INVENTARIO_PRODUCTOS_POR_PAGINA = 10
+
+function normalizarTipoProducto(tipo) {
+  const valor = (tipo || '').toString().trim().toLowerCase()
+  if (valor === 'gorra' || valor === 'gorras') return 'gorra'
+  if (valor === 'playera' || valor === 'playeras' || valor === 'prenda' || valor === 'prendas') return 'prendas'
+  return 'prendas'
+}
 
 // Configuración (reglas de descuento desde BD; varias reglas, cada una con toggle)
 let config = {
@@ -22,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Search
   document.getElementById('search').addEventListener('input', (e) => buscarProductos(e.target.value))
+  document.getElementById('search-inventario').addEventListener('input', (e) => buscarInventario(e.target.value))
 
   // Navigation tabs
   document.querySelectorAll('.nav-tab').forEach(btn => {
@@ -122,19 +139,43 @@ async function cargarProductos() {
         p._imagePath = await window.db.getImagePath(p.imagen)
       }
     }
-    mostrarProductos(productos)
+    catalogoProductos = productos
+    mostrarProductos()
   } catch (err) {
     console.error('Error cargando productos:', err)
   }
 }
 
-function mostrarProductos(productos) {
+function mostrarProductos() {
   const container = document.getElementById('productos-container')
+  if (!container) return
   container.innerHTML = ''
 
-  // Agrupar por tipo
-  const gorras = productos.filter(p => p.tipo === 'gorra')
-  const prendas = productos.filter(p => p.tipo === 'prendas')
+  const busquedaNormalizada = catalogoBusqueda.trim().toLowerCase()
+  const filtrados = catalogoProductos.filter(p => {
+    const tipoNormalizado = normalizarTipoProducto(p.tipo)
+    if (catalogoFiltro !== 'todos' && tipoNormalizado !== catalogoFiltro) {
+      return false
+    }
+    if (!busquedaNormalizada) return true
+    const nombre = (p.nombre || '').toLowerCase()
+    const id = String(p.id || '')
+    return nombre.includes(busquedaNormalizada) || id.includes(busquedaNormalizada)
+  })
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / CATALOGO_PRODUCTOS_POR_PAGINA))
+  if (catalogoPaginaActual > totalPaginas) {
+    catalogoPaginaActual = totalPaginas
+  }
+
+  const inicio = (catalogoPaginaActual - 1) * CATALOGO_PRODUCTOS_POR_PAGINA
+  const productosPagina = filtrados.slice(inicio, inicio + CATALOGO_PRODUCTOS_POR_PAGINA)
+
+  renderPaginacionCatalogo(totalPaginas, filtrados.length)
+
+  // Agrupar por tipo (solo de la página actual)
+  const gorras = productosPagina.filter(p => normalizarTipoProducto(p.tipo) === 'gorra')
+  const prendas = productosPagina.filter(p => normalizarTipoProducto(p.tipo) === 'prendas')
 
   if (gorras.length > 0) {
     container.appendChild(crearSeccion('GORRAS', gorras))
@@ -142,6 +183,79 @@ function mostrarProductos(productos) {
   if (prendas.length > 0) {
     container.appendChild(crearSeccion('PRENDAS', prendas))
   }
+
+  if (productosPagina.length === 0) {
+    container.innerHTML = `<p class="text-center text-outline py-8">${
+      catalogoProductos.length === 0
+        ? 'No hay productos registrados'
+        : 'No se encontraron productos con ese filtro'
+    }</p>`
+  }
+}
+
+function renderPaginacionCatalogo(totalPaginas, totalItems) {
+  const paginacion = document.getElementById('catalogo-paginacion')
+  if (!paginacion) return
+
+  if (totalItems === 0) {
+    paginacion.innerHTML = ''
+    return
+  }
+
+  const crearBoton = (texto, pagina, disabled = false, activo = false) => {
+    const clasesBase = 'px-3 py-1.5 rounded-lg border text-xs font-bold transition-all'
+    const clasesEstado = activo
+      ? 'bg-[#1D9E75] text-white border-[#1D9E75]'
+      : 'bg-white text-outline border-outline-variant hover:bg-gray-50'
+    return `<button class="${clasesBase} ${clasesEstado} disabled:opacity-40 disabled:cursor-not-allowed" data-page="${pagina}" ${disabled ? 'disabled' : ''}>${texto}</button>`
+  }
+
+  const construirPaginasVisibles = () => {
+    const visibles = []
+    const ventana = 1 // muestra actual ±1
+
+    if (totalPaginas <= 7) {
+      for (let i = 1; i <= totalPaginas; i++) visibles.push(i)
+      return visibles
+    }
+
+    visibles.push(1)
+
+    const inicio = Math.max(2, catalogoPaginaActual - ventana)
+    const fin = Math.min(totalPaginas - 1, catalogoPaginaActual + ventana)
+
+    if (inicio > 2) visibles.push('...')
+    for (let i = inicio; i <= fin; i++) visibles.push(i)
+    if (fin < totalPaginas - 1) visibles.push('...')
+
+    visibles.push(totalPaginas)
+    return visibles
+  }
+
+  const paginas = construirPaginasVisibles().map(item => {
+    if (item === '...') {
+      return '<span class="px-1 text-xs text-outline">...</span>'
+    }
+    return crearBoton(item, item, false, item === catalogoPaginaActual)
+  })
+
+  paginacion.innerHTML = `
+    ${crearBoton('‹', catalogoPaginaActual - 1, catalogoPaginaActual === 1)}
+    <span class="text-xs text-outline px-1">${catalogoPaginaActual}/${totalPaginas}</span>
+    ${paginas.join('')}
+    ${crearBoton('›', catalogoPaginaActual + 1, catalogoPaginaActual === totalPaginas)}
+  `
+
+  paginacion.querySelectorAll('button[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pagina = parseInt(btn.dataset.page, 10)
+      if (Number.isNaN(pagina) || pagina < 1 || pagina > totalPaginas || pagina === catalogoPaginaActual) {
+        return
+      }
+      catalogoPaginaActual = pagina
+      mostrarProductos()
+    })
+  })
 }
 
 function crearSeccion(titulo, productos) {
@@ -401,25 +515,15 @@ function filtrarProductos(tipo, button) {
     }
   })
 
-  // Filtrar productos
-  const items = document.querySelectorAll('[data-filter]')
-  cargarProductos() // Recargar y filtrar
+  catalogoFiltro = tipo || 'todos'
+  catalogoPaginaActual = 1
+  mostrarProductos()
 }
 
 function buscarProductos(termino) {
-  // Buscar en los cards
-  const cards = document.querySelectorAll('.product-card-hover')
-  cards.forEach(card => {
-    const nombre = card.querySelector('.font-body-m-bold')?.textContent || ''
-    const id = card.querySelector('.font-code-num')?.textContent || ''
-
-    if (nombre.toLowerCase().includes(termino.toLowerCase()) ||
-        id.toLowerCase().includes(termino.toLowerCase())) {
-      card.style.display = 'block'
-    } else {
-      card.style.display = 'none'
-    }
-  })
+  catalogoBusqueda = termino || ''
+  catalogoPaginaActual = 1
+  mostrarProductos()
 }
 
 // Subpestañas dentro de Configuración
@@ -499,17 +603,41 @@ async function cargarInventario() {
         p._imagePath = await window.db.getImagePath(p.imagen)
       }
     }
-    mostrarInventario(productos)
+    inventarioProductos = productos
+    mostrarInventario()
   } catch (err) {
     console.error('Error cargando inventario:', err)
   }
 }
 
-function mostrarInventario(productos) {
+function mostrarInventario() {
   const container = document.getElementById('inventario-container')
+  if (!container) return
 
-  if (productos.length === 0) {
-    container.innerHTML = '<p class="text-center text-outline py-8">No hay productos</p>'
+  const busquedaNormalizada = inventarioBusqueda.trim().toLowerCase()
+  const productosFiltrados = inventarioProductos.filter(prod => {
+    if (!busquedaNormalizada) return true
+    const nombre = (prod.nombre || '').toLowerCase()
+    const tipo = (prod.tipo || '').toLowerCase()
+    const id = String(prod.id || '')
+    return nombre.includes(busquedaNormalizada) || tipo.includes(busquedaNormalizada) || id.includes(busquedaNormalizada)
+  })
+
+  const totalPaginas = Math.max(1, Math.ceil(productosFiltrados.length / INVENTARIO_PRODUCTOS_POR_PAGINA))
+  if (inventarioPaginaActual > totalPaginas) {
+    inventarioPaginaActual = totalPaginas
+  }
+
+  const inicio = (inventarioPaginaActual - 1) * INVENTARIO_PRODUCTOS_POR_PAGINA
+  const productosPagina = productosFiltrados.slice(inicio, inicio + INVENTARIO_PRODUCTOS_POR_PAGINA)
+  renderPaginacionInventario(totalPaginas, productosFiltrados.length)
+
+  if (productosPagina.length === 0) {
+    container.innerHTML = `<p class="text-center text-outline py-8">${
+      inventarioProductos.length === 0
+        ? 'No hay productos'
+        : 'No hay productos que coincidan con la búsqueda'
+    }</p>`
     return
   }
 
@@ -530,7 +658,7 @@ function mostrarInventario(productos) {
   `
   tabla.appendChild(header)
 
-  productos.forEach(prod => {
+  productosPagina.forEach(prod => {
     const row = document.createElement('div')
     row.className = 'grid gap-2 p-3 bg-white border border-outline-variant rounded-lg items-center'
     row.style.gridTemplateColumns = '48px 1fr 80px 80px 60px 50px 100px'
@@ -568,6 +696,77 @@ function mostrarInventario(productos) {
 
   container.innerHTML = ''
   container.appendChild(tabla)
+}
+
+function renderPaginacionInventario(totalPaginas, totalItems) {
+  const paginacion = document.getElementById('inventario-paginacion')
+  if (!paginacion) return
+
+  if (totalItems === 0) {
+    paginacion.innerHTML = ''
+    return
+  }
+
+  const crearBoton = (texto, pagina, disabled = false, activo = false) => {
+    const clasesBase = 'px-3 py-1.5 rounded-lg border text-xs font-bold transition-all'
+    const clasesEstado = activo
+      ? 'bg-[#1D9E75] text-white border-[#1D9E75]'
+      : 'bg-white text-outline border-outline-variant hover:bg-gray-50'
+    return `<button class="${clasesBase} ${clasesEstado} disabled:opacity-40 disabled:cursor-not-allowed" data-page="${pagina}" ${disabled ? 'disabled' : ''}>${texto}</button>`
+  }
+
+  const construirPaginasVisibles = () => {
+    const visibles = []
+    const ventana = 1 // muestra actual ±1
+
+    if (totalPaginas <= 7) {
+      for (let i = 1; i <= totalPaginas; i++) visibles.push(i)
+      return visibles
+    }
+
+    visibles.push(1)
+
+    const inicio = Math.max(2, inventarioPaginaActual - ventana)
+    const fin = Math.min(totalPaginas - 1, inventarioPaginaActual + ventana)
+
+    if (inicio > 2) visibles.push('...')
+    for (let i = inicio; i <= fin; i++) visibles.push(i)
+    if (fin < totalPaginas - 1) visibles.push('...')
+
+    visibles.push(totalPaginas)
+    return visibles
+  }
+
+  const paginas = construirPaginasVisibles().map(item => {
+    if (item === '...') {
+      return '<span class="px-1 text-xs text-outline">...</span>'
+    }
+    return crearBoton(item, item, false, item === inventarioPaginaActual)
+  })
+
+  paginacion.innerHTML = `
+    ${crearBoton('‹', inventarioPaginaActual - 1, inventarioPaginaActual === 1)}
+    <span class="text-xs text-outline px-1">${inventarioPaginaActual}/${totalPaginas}</span>
+    ${paginas.join('')}
+    ${crearBoton('›', inventarioPaginaActual + 1, inventarioPaginaActual === totalPaginas)}
+  `
+
+  paginacion.querySelectorAll('button[data-page]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pagina = parseInt(btn.dataset.page, 10)
+      if (Number.isNaN(pagina) || pagina < 1 || pagina > totalPaginas || pagina === inventarioPaginaActual) {
+        return
+      }
+      inventarioPaginaActual = pagina
+      mostrarInventario()
+    })
+  })
+}
+
+function buscarInventario(termino) {
+  inventarioBusqueda = termino || ''
+  inventarioPaginaActual = 1
+  mostrarInventario()
 }
 
 async function actualizarStockInventario(id, button) {
