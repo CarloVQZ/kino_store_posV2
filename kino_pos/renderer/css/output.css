@@ -2080,6 +2080,10 @@ input:where([type='file']):focus {
   opacity: 0.8;
 }
 
+.disabled\:cursor-not-allowed:disabled {
+  cursor: not-allowed;
+}
+
 .disabled\:opacity-40:disabled {
   opacity: 0.4;
 }
