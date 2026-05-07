@@ -8,7 +8,9 @@
   "scripts": {
     "build:css": "tailwindcss -i ./renderer/css/input.css -o ./renderer/css/output.css",
     "watch:css": "tailwindcss -i ./renderer/css/input.css -o ./renderer/css/output.css --watch",
-    "start": "npm run build:css && electron .",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3",
+    "postinstall": "npm run rebuild:native",
+    "start": "npm run rebuild:native && npm run build:css && electron .",
     "dev": "npm run watch:css & electron .",
     "pack": "npm run build:css && ELECTRON_BUILDER_DISABLE_ELECTRON_REBUILD=true electron-builder --dir",
     "dist:linux": "npm run build:css && ./node_modules/.bin/electron-rebuild -f -w better-sqlite3 && electron-builder --linux deb AppImage"
