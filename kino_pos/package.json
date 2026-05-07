@@ -54,6 +54,7 @@
         "deb",
         "AppImage"
       ],
+      "icon": "build/pwa-512x512.png",
       "category": "Office",
       "maintainer": "Kino Store"
     },
