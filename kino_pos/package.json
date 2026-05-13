@@ -1,6 +1,6 @@
 {
   "name": "kino_pos",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "productName": "Kino POS",
   "description": "Punto de venta para tienda de gorras y playeras",
   "main": "main.js",

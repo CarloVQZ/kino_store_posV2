@@ -18,6 +18,7 @@
         <span class="material-symbols-outlined text-sm">shopping_bag</span>
       </div>
       <span class="font-h1 text-h1 tracking-tight">Kino POS</span>
+      <span id="version-header" class="text-[10px] font-mono text-outline bg-gray-100 px-1.5 py-0.5 rounded"></span>
     </div>
     <div class="flex items-center gap-6">
       <span class="font-body-m text-body-m text-gray-500" id="fecha">Hoy: 24 May, 2024</span>
@@ -267,7 +268,10 @@
       <!-- TAB: CONFIGURACIÓN -->
       <div id="tab-configuracion" class="flex-1 flex flex-col overflow-hidden hidden min-h-0">
         <div class="flex-none px-5 pt-5 pb-0 border-b border-gray-100 bg-surface-container-low">
-          <h2 class="font-h1 text-h2 mb-4">Configuración</h2>
+          <div class="flex items-center gap-3 mb-4">
+            <h2 class="font-h1 text-h2">Configuración</h2>
+            <span id="version-config" class="text-[10px] font-mono text-outline bg-gray-100 px-1.5 py-0.5 rounded"></span>
+          </div>
           <div class="flex gap-1 -mb-px" role="tablist">
             <button type="button" role="tab" class="config-subtab active" data-config-subtab="descuentos" aria-selected="true">
               <span class="material-symbols-outlined text-[18px]">percent</span>
@@ -697,6 +701,7 @@
           Ingresar
         </button>
       </form>
+      <p id="version-login" class="text-[10px] font-mono text-outline mt-6 text-center"></p>
     </div>
   </div>
 

@@ -28,6 +28,7 @@ let config = {
 // Inicializar la app
 document.addEventListener('DOMContentLoaded', async () => {
   actualizarFecha()
+  await mostrarVersion()
   await initAuth() // Inicializar auth primero
   await cargarProductos()
 
@@ -128,6 +129,20 @@ function actualizarFecha() {
   const ahora = new Date()
   const opciones = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }
   document.getElementById('fecha').textContent = 'Hoy: ' + ahora.toLocaleDateString('es-ES', opciones)
+}
+
+async function mostrarVersion() {
+  try {
+    const version = await window.db.getVersion()
+    const texto = `v${version}`
+    const ids = ['version-header', 'version-login', 'version-config']
+    ids.forEach(id => {
+      const el = document.getElementById(id)
+      if (el) el.textContent = texto
+    })
+  } catch (e) {
+    console.error('Error obteniendo versión:', e)
+  }
 }
 
 async function cargarProductos() {

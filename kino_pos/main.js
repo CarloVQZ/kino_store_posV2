@@ -1,5 +1,8 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
+
+// App version handler
+ipcMain.handle('app:getVersion', () => app.getVersion())
 const fs = require('fs')
 const crypto = require('crypto')
 
