@@ -15,7 +15,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS producto (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre      TEXT NOT NULL,
-    tipo        TEXT NOT NULL CHECK(tipo IN ('gorra', 'playera')),
+    tipo        TEXT NOT NULL CHECK(tipo IN ('gorra', 'playera', 'prendas')),
     precio      REAL NOT NULL,
     stock       INTEGER NOT NULL DEFAULT 0,
     stock_minimo INTEGER NOT NULL DEFAULT 5,
@@ -237,5 +237,37 @@ try {
     console.log('✓ Columna estado agregada a venta')
   }
 } catch (e) { /* */ }
+
+// Migración: ampliar CHECK de producto.tipo para aceptar 'prendas'
+try {
+  // Detectar si el CHECK actual no incluye 'prendas'
+  const sqlCheck = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='producto'").get()
+  if (sqlCheck && sqlCheck.sql && !sqlCheck.sql.includes("'prendas'")) {
+    db.exec('PRAGMA foreign_keys = OFF')
+    db.exec('BEGIN TRANSACTION')
+    db.exec(`
+      CREATE TABLE producto_new (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT NOT NULL,
+        tipo        TEXT NOT NULL CHECK(tipo IN ('gorra', 'playera', 'prendas')),
+        precio      REAL NOT NULL,
+        stock       INTEGER NOT NULL DEFAULT 0,
+        stock_minimo INTEGER NOT NULL DEFAULT 5,
+        imagen      TEXT,
+        creado_en   TEXT DEFAULT (datetime('now'))
+      );
+      INSERT INTO producto_new SELECT * FROM producto;
+      DROP TABLE producto;
+      ALTER TABLE producto_new RENAME TO producto;
+      UPDATE producto SET tipo = 'prendas' WHERE tipo = 'playera';
+    `)
+    db.exec('COMMIT')
+    db.exec('PRAGMA foreign_keys = ON')
+    console.log('✓ CHECK de producto.tipo actualizado (ahora acepta prendas)')
+  }
+} catch (e) {
+  try { db.exec('ROLLBACK') } catch (_) {}
+  console.error('Error migrando CHECK de producto.tipo:', e.message)
+}
 
 module.exports = db
